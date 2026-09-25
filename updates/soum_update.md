@@ -196,3 +196,40 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
   - **Anushka:** `vault reset`'s seed and the dashboard's upload can use `PUT :7080/{bucket}/{key}` now. Buckets must exist first (reset creates them).
   - **Jaiveer:** reads report `unreachable` / `missing` / `corrupt` to `/v1/reports/fragment` with `context: read` (404 from you until J7, harmless).
   - **For S6, heads-up to Anushka:** on Windows a request to a dead machine takes ~2 s to be refused. If a relay answered `599` for a failed forward, rpc.py would try every other relay candidate (≈ 12 s per request). My relay will answer **`502 target_unreachable`** instead, so the caller stops after one relay. Tell me if you'd rather handle it in rpc.py.
+
+## [Hour 7] S6 Relay + node chaos (cut-cable and silent-corruption scenes work)
+- What was done:
+  - **Relay** (`node/soum_relay.py`): `ANY /v1/relay/{target}/{path}`.
+    - Requires `X-Vault-Hop: 1` (else `400 bad_hop`).
+    - Forwards once with `rpc.forward(..., origin=<X-Vault-From>)`, which sets From/Origin/Via, so the target's netsim judges the relay→target link and metadata sees `route: relay:<us>`.
+    - Returns the target's status, body and headers, minus hop-by-hop headers.
+    - A failed forward → **`502 target_unreachable`** (not 599), so the caller's rpc doesn't try every other relay (~2 s each on Windows).
+    - Refused with `503 relay_disabled` when `safety.relay` is off (Naive).
+  - **Node chaos** (`node/soum_chaos.py`):
+    - `POST /_chaos/corrupt` (`count` random or `fids`; `bitflip` | `zero` | `truncate` | `delete`) damages the payload only; the header stays intact, and the node's index is not told (silent corruption). Returns `CorruptResult` with the damaged fids. Empty payloads are never picked.
+    - `POST /_chaos/disk_full {on}` → PUT/pull return 507.
+    - Registered `ns.on_clear` (clears disk_full) and `ns.add_state` (`{"disk_full": bool}` in `GET /_chaos` `node_faults`).
+    - Only installed when `chaos.enabled`.
+- Files created/changed: `node/soum_relay.py`, `node/soum_chaos.py`, `node/soum_app.py` (routers wired), `tests/test_soum_relay_chaos.py` (new, 10 tests), `handoffs/soum_to_jaiveer_slow_flag_at_startup.md` (new)
+- Endpoints / functions / components exposed (nodes :7101+):
+  - `ANY /v1/relay/{target}/{path:path}`: the target's response · `400 bad_hop` · `502 target_unreachable` · `503 relay_disabled`
+  - `POST /_chaos/corrupt` `CorruptRequest` → `CorruptResult` · `POST /_chaos/disk_full` `DiskFullRequest` → `ChaosState`
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_relay_chaos.py` (10 tests). Full suite: 200 passed.
+  - **Live, cut cable** (`python -m vault up` with main incl. J6, 20 files seeded through the gateway): `POST :7070/chaos/link {"a":"meta","b":"n5","cut":true}`, then wait 20 s (longer than `dead_after_s` 15):
+    - `/v1/cluster` shows n5 **ALIVE**, `route: relay:n1`, and links `meta|n5` with `relay: n1`.
+    - n5 is not fenced (its lease renews through the relay).
+    - The timeline shows `link.relayed` ("…Messages now go through Reception PC."). **n5 never went DOWN/DEAD, so there was no rebuild.**
+    - After restoring the link, the route is back to `direct` within 3 s.
+  - **Live, damage 10 copies:** `POST :7070/chaos/corrupt {"count":10}`:
+    - All 20 files still download byte-identical (2 reads hit damaged copies, quarantined them and failed over).
+    - `POST /v1/scrub` on each node found the other 8.
+    - All 10 are in `quarantine/`, and each was reported to `/v1/reports/fragment` (repair comes with J7).
+- Known issues / TODO:
+  - The relay can't be tested in-process across two rpc clients (one rpc per process), so relay routing was proven live; the unit tests stub `rpc.forward`.
+  - Repair of the quarantined copies is J7 (Jaiveer).
+- Anything other teammates must know or do:
+  - **Anushka:** your supervisor's node `corrupt` / `disk_full` actions now work (they were 404 before). `disk_full` shows in each node's `GET /_chaos` `node_faults`.
+    - Please confirm you're OK with relays answering **502** for a failed forward (see S5 note). rpc.py returns any non-599 response to the caller as-is, which is what stops the relay loop.
+  - **Jaiveer:** handoff `handoffs/soum_to_jaiveer_slow_flag_at_startup.md`. `node.slow` fires for all 6 machines at every boot, from the ping-loss rule while peers are still starting. That would show 6 false "answering slowly" lines after the power-cut scene.
+  - **Jaiveer:** heartbeats through a relay arrive with `X-Vault-Via` / `X-Vault-Origin`, as rpc.forward sets them. Verified: your snapshot shows `relay:n1`.
