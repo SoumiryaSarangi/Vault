@@ -145,7 +145,16 @@ Every seam is defined by `backend/vault/common/models.py` (Python) and `web/lib/
 
 ---
 
-## 9. Open decision for Anushka
+## 9. Decisions log
+
+**D1 · ec42 effective copies on the default layout (asked by Jaiveer, decided by Anushka):**
+- **The number is honest: ec42 files have IFL 2, not 3.** Each chunk's 6 pieces sit on all 6 machines, each power strip / switch / disk batch feeds 2 of them, and 4 pieces are needed. So any two strips together lose the file. It survives any one strip (PRD §7 caveat 2). The J3 criterion "IFL 3" was a mistake in the task file, now fixed. Never adjust the math to make a tile green.
+- **Target stays m+1 = 3** (ARCHITECTURE §4.12 unchanged), so `archive` files are **Limited (amber)**.
+- **Auditor (J9):** when no move can raise IFL (ec42 already uses every eligible machine), queue **no** moves (no churn) and emit **one** cluster-level `fate.limited` advice for ec42, not one per file. Human line: "Archive files are split into 6 pieces across all 6 machines, and each power strip feeds 2 of them. They survive losing one power strip, but not two. To survive two, give each machine its own power supply."
+- **Demo:** demo files go to `clinic` (rep3) only, and `archive` stays empty on stage, so the healthy console shows effective copies 3 in green. ec42's weaker fate tolerance is a Q&A answer ("erasure coding saves half the space; Vault tells you honestly what that costs").
+- **Dashboard:** the effective-copies tone compares each file with its **own policy's** target.
+
+## 10. Open decision for Anushka
 
 **`docs/REFORGE_4_LAPTOP_DEMO_PLAN.md` vs the PRD.** The REFORGE doc describes 4 physical laptops, 4 nodes and the name "REFORGE". The frozen PRD describes 6 simulated machines on one laptop, names the product "Vault", and lists "real hardware for the demo" as a non-goal (§5.4).
 

@@ -58,6 +58,7 @@ You own the thing that makes judges believe us: the **Durability Oracle**, an in
 
 ### U8. Demo runbook, pitch, recording · H12 → H19
 - **Files:** `demo/urooz_demo_runbook.md` (exact clicks, lines and expected screen per scene, reset procedure, fallbacks), `demo/urooz_pitch.md` (PRD §10 + judge Q&A), backup video.
+- Demo files live in `clinic` (rep3) only; keep `archive` empty on stage (MASTER_PLAN D1). Add this Q&A: "Why does erasure coding show 2 effective copies?" → "It stores 1.5× instead of 3×, but its 6 pieces need all 6 machines, so two power strips failing together would lose it. Vault measures that and says so instead of hiding it."
 - H17–19: record `heavy` Oracle runs (Vault + Naive), record the full demo video, lead 3 rehearsals.
 
 ---

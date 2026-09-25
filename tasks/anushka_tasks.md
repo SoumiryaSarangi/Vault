@@ -15,7 +15,7 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 
 ### A1. Kickoff · H0–2
 - Push `main`. Everyone runs README setup, `pytest`, `python -m vault up`. Send Jaiveer and Soum their START NOW prompts.
-- Decide MASTER_PLAN §9 (REFORGE 4-laptop doc).
+- Decide MASTER_PLAN §10 (REFORGE 4-laptop doc).
 
 ### A2. Chaos controller I · ✅ done (link, node slow/freeze/corrupt/disk_full/clear, `/chaos/corrupt` random, faults list, clear_all, kill/start reporting)
 - **Files:** `supervisor/anushka_chaos_ctl.py`, `supervisor/anushka_app.py`
@@ -29,7 +29,7 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 ### A4. Brand components · ✅ done
 - `VaultMark.tsx` (liquid metal, pauses offscreen / reduced motion), `VaultMarkLazy.tsx` (use this: `next/dynamic`, static fallback while loading), `VaultMarkStatic.tsx`, `Wordmark.tsx`. Rendered in Chromium with 0 console errors.
 
-### A5. Console shell + Overview on fixtures · H4 → H7
+### A5. Console shell + Overview on fixtures · H4 → H7 · note D1: effective-copies tone compares each file with its own policy target
 - `ConsoleShell`, `TopBar`/`HealthSentence`/`ModeBanner`, `NodeList`/`NodeCard`/`PhiSparkline`/`DiskBar`/`LabelGlyphs`, `EventTimeline`/`EventItem` (Explain toggle), `KpiStrip`/`KpiTile`/`MttrBar`, `ChaosDock` UI (DESIGN §5.3, §5.8, §9, §10). Load `web/fixtures/*.json` into the store while the backend is off.
 - **Done when:** Overview fits 1280×720 with no scroll and every state from the fixture reads right.
 

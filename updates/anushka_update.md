@@ -43,3 +43,8 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - How to run / test it: `python -m vault up`, then `python -m vault reset`, or `curl -X POST :7070/power/cut -H "Content-Type: application/json" -d '{"scope":"label","label":"power=A","restore_after_s":3}'`.
 - Known issues / TODO: bucket creation, mode and the ALIVE wait in reset are skipped (logged) until Jaiveer's J4/J6; seed and scripts return 501 until Urooz's U2/U3. Power cut by label uses metadata's live labels when `/v1/cluster` exists, else the vault.yaml labels.
 - Anything other teammates must know or do: **Soum**: register with `node_identity(cfg, pid)`. **Jaiveer**: register must accept unknown nodes (n7+); `POST /v1/buckets` on an existing bucket → 409. **Urooz**: `ChaosStep` is ready in models.py; reset calls your `seed()` and must stay ≤ 20 s in total.
+
+## [Hour 3] Merge point: Jaiveer J1–J3 + decision D1 (ec42 IFL)
+- What was done: reviewed and merged `jaiveer-j1-j3` (only his files touched; full suite 72 passing on the merged main). Merged chaos controller II. Decided Jaiveer's ec42 question: MASTER_PLAN §9 D1.
+- Files created/changed: docs/MASTER_PLAN.md (§9 decisions log, REFORGE now §10); tasks/{jaiveer,urooz,anushka}_tasks.md.
+- Anything other teammates must know or do: **Everyone**: `git pull origin main`. **Jaiveer**: ec42 IFL 2 is correct, keep it; J9 rule: no moves when none can help, one aggregated `fate.limited` advice for ec42. **Urooz**: seed `clinic` only; ec42 Q&A line added to U8. **Soum**: `place`/`choose_additional` are on main now.

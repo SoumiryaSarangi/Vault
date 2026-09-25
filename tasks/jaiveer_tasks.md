@@ -33,7 +33,7 @@ Write the tests listed in each test file's docstring. Run `python -m pytest -q` 
 ### J3. Effective copies / IFL (≈1 h) · target H4
 - **Files:** `backend/vault/common/jaiveer_fate.py`, `tests/test_jaiveer_fate.py`
 - **Spec:** ARCHITECTURE §4.12 (domains, cluster-wide, IFL by iterative deepening, min_cut, target), PRD §4.1.
-- **Done when:** default labels, rep3 on {n1,n3,n5} → IFL 3; relabel n3 and n5 to power=A → IFL 1, min_cut `[("power","A")]`; `version` is cluster-wide and excluded; ec42 on all 6 → IFL 3 and survives any one power strip; results cached by `frozenset`.
+- **Done when:** default labels, rep3 on {n1,n3,n5} → IFL 3; relabel n3 and n5 to power=A → IFL 1, min_cut `[("power","A")]`; `version` is cluster-wide and excluded; ec42 on all 6 → **IFL 2** (survives any one power strip, not two; see MASTER_PLAN D1); results cached by `frozenset`. ✅ merged.
 
 ---
 
@@ -75,6 +75,7 @@ Write the tests listed in each test file's docstring. Run `python -m pytest -q` 
 - **Files:** `brain/jaiveer_auditor.py` (+ the `/health` endpoint in `jaiveer_objects.py`)
 - **Spec:** ARCHITECTURE §4.12 (audit on label change / membership change / every 5 s; levels safe/limited/at_risk; greedy make-before-break moves via `enqueue_job(kind=move, reason=fate)`; never lower IFL; advice when the target is unreachable; cluster-wide risks), §8.3 `FateReport`, `GET /v1/fate`, `GET /v1/objects/{b}/{k}/health` (IFL + min_cut), `PATCH /v1/nodes/{id}/labels` → `request_audit`.
 - **Events:** `fate.at_risk`, `fate.fixed`, `fate.limited` (human = the advice sentence), `fate.cluster_wide`.
+- **ec42 rule (MASTER_PLAN D1):** if no move can raise a chunk's IFL (ec42 already on every eligible machine), queue no moves and emit **one** cluster-level `fate.limited` for ec42 (sentence in D1), deduplicated until the layout changes. Keep the IFL value honest (2).
 - **Done when:** the demo relabel in §4.12 works: set power=A on n3 and n5 → files on {n1,n3,n5} drop to IFL 1 → moves raise them to 2 → advice explains why 3 needs another power supply → cutting Power Strip A leaves every file readable.
 
 ---
