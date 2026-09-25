@@ -78,3 +78,29 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - How to run / test it: n/a.
 - Known issues / TODO: none.
 - Anything other teammates must know or do: **Gateway behaviour**: a PUT to a node that has just restarted can get `503 fenced` for under a second; the gateway treats that as a failed fragment and uses a spare.
+
+## [Hour 4] S3 Node API
+- What was done: replaced the node stub with the real fragment API (ARCHITECTURE §7.3) on top of S2 storage.
+  - Epoch and lease fencing uses Anushka's rule: never leased or lease expired → fenced. Fenced → PUT/DELETE refused, verified GETs still served. Naive mode skips it.
+  - Checksum check on receive; disk-full check (chaos flag, or `disk_used + size > node_capacity_bytes`).
+  - A damaged copy on read → `409 corrupt` + quarantine + a background `FragmentReport` to metadata (`context: read`).
+  - Epoch and lease are loaded from `node.json` at startup.
+- Files created/changed: `backend/vault/node/soum_app.py`, `backend/vault/node/soum_storage.py` (+ `encode_meta` / `decode_meta`), `backend/vault/tests/test_soum_node_api.py`
+- Endpoints / functions / components exposed (n1–n6 on :7101–7106):
+  - `PUT /v1/fragments/{fid}`: bytes + `X-Vault-Meta` (base64url JSON `FragmentHeader`, unpadded; padding accepted), `X-Vault-Sha256`, `X-Vault-Epoch` → `201 FragmentPutResult`.
+    - Errors: `400 bad_request` (missing/unreadable meta, or meta fid ≠ path fid) · `400 checksum_mismatch` · `409 stale_epoch` (wrong or missing epoch) · `503 fenced` · `507 disk_full`.
+  - `GET /v1/fragments/{fid}` → `200` bytes + `X-Vault-Sha256` + `X-Vault-Meta` · `404 not_found` · `409 corrupt`.
+  - `HEAD /v1/fragments/{fid}` → `200` (same headers) · `404`.
+  - `DELETE /v1/fragments/{fid}` (`X-Vault-Epoch`) → `204`, also when the fragment is already gone (trims are idempotent) · `409 stale_epoch` · `503 fenced`.
+  - `GET /v1/ping` → `Ping` with the real epoch · `GET /v1/health` → `NodeHealth`.
+  - `POST /v1/scrub` → `202` (one full pass in the background) · `GET /v1/scrub` → `ScrubStatus`. `scanned` and `corrupt_found` are per pass.
+  - Internal, for S4/S6: `app.state.node` (`Node`): `save_state(epoch, lease_expiry)`, `fenced()`, `report(fid, problem, context)`, `trigger_scrub()`, `disk_full`, `safety`, `discarded`.
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_node_api.py` (13 tests); full suite 109 passed.
+  - Live: with `vault up` and a lease seeded in `data/n1/node.json`, PUT 200 KB → 201; GET → bytes match; flip a byte in the `.blk` → `409 corrupt`, file moved to `quarantine/`. PUT to n2 (no lease) → `503 fenced`.
+- Known issues / TODO:
+  - Until S4 heartbeats run against Jaiveer's J4, nodes never get a lease, so **every node returns `503 fenced` on PUT under plain `vault up`**. This is correct behaviour; reads work.
+  - The corrupt report gets a 404 until J7 adds `/v1/reports/fragment` (logged, harmless).
+- Anything other teammates must know or do:
+  - **Jaiveer (repair, J7):** send `X-Vault-Epoch` with every `DELETE`. A node answers `503 fenced` until its first heartbeat reply grants a lease.
+  - **Anushka:** `/_chaos/corrupt` and `/_chaos/disk_full` still come in S6.

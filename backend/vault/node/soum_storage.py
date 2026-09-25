@@ -10,6 +10,7 @@ The node app (the only caller) checks X-Vault-Sha256 on receive; storage only ve
 Blocking file I/O runs in asyncio.to_thread (ARCHITECTURE §11).
 """
 import asyncio
+import base64
 import json
 import os
 import secrets
@@ -68,6 +69,16 @@ def decode_blk(blob: bytes) -> tuple[FragmentHeader, bytes]:
         raise ValueError("truncated header")
     header = FragmentHeader.model_validate_json(blob[_PREFIX:_PREFIX + n])
     return header, blob[_PREFIX + n:]
+
+
+def encode_meta(header: FragmentHeader) -> str:
+    """X-Vault-Meta value: base64url JSON FragmentHeader, no padding (§7.3)."""
+    return base64.urlsafe_b64encode(header.model_dump_json().encode()).decode().rstrip("=")
+
+
+def decode_meta(value: str) -> FragmentHeader:
+    """Inverse of encode_meta; padding optional. Raises ValueError if unreadable."""
+    return FragmentHeader.model_validate_json(base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)))
 
 
 def _read_header(path: Path) -> tuple[FragmentHeader, int]:
