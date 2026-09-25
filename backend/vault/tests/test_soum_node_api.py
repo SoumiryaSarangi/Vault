@@ -37,7 +37,7 @@ def put_headers(h: FragmentHeader, epoch=EPOCH) -> dict:
 def env(tmp_path):
     cfg = load_config("vault.yaml")
     cfg.cluster.data_dir = str(tmp_path)
-    app = create_app(cfg, "n1")
+    app = create_app(cfg, "n1", start_loops=False)
     with TestClient(app) as client:
         node = app.state.node
         node.epoch, node.lease_expiry = EPOCH, time.time() + 60
@@ -183,12 +183,12 @@ def test_ping_and_health(env):
 def test_startup_loads_saved_lease_and_epoch(tmp_path):
     cfg = load_config("vault.yaml")
     cfg.cluster.data_dir = str(tmp_path)
-    app = create_app(cfg, "n2")
+    app = create_app(cfg, "n2", start_loops=False)
     with TestClient(app):
         pass
     st = Storage(tmp_path / "n2", "n2")
     asyncio.run(st.write_node_json({"epoch": 7, "lease_expiry": time.time() + 30}))
-    app = create_app(cfg, "n2")
+    app = create_app(cfg, "n2", start_loops=False)
     with TestClient(app) as client:
         assert client.get("/v1/ping").json()["epoch"] == 7
         assert client.get("/v1/health").json()["fenced"] is False

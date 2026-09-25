@@ -1,7 +1,8 @@
 """Storage node, :7101+ (ARCHITECTURE §7.3). Owner: Soum. Tasks S3, S4, S6.
 
 S3: fragment PUT/GET/HEAD/DELETE with epoch + lease fencing, /v1/ping, /v1/health, /v1/scrub.
-S4 adds heartbeat/pinger/pull/scrub loop, S6 relay + node chaos; they reach the node through app.state.node.
+S4: /pull + background loops (soum_heartbeat, soum_pinger, soum_scrubber). S6: relay + node chaos.
+Loops reach the node through the Node object (also app.state.node).
 
 Fencing (§4.6, decided by Anushka): fenced = safety.fencing and (no lease yet or lease expired).
 A fenced node refuses PUT/DELETE (503 fenced) but still serves verified GETs.
@@ -16,9 +17,13 @@ from fastapi import FastAPI, Request, Response
 
 from vault.common.config import SafetyCfg, VaultConfig
 from vault.common.hashing import sha256_hex
-from vault.common.models import FragmentPutResult, FragmentReport, NodeHealth, Ping, ScrubStatus
+from vault.common.models import (FragmentPutResult, FragmentReport, NodeHealth, Ping, PullRequest, PullResult,
+                                 Reach, ScrubStatus)
 from vault.common.rpc import NetworkError, get_rpc
 from vault.common.service import VaultHTTPError, make_app
+from vault.node import soum_pull, soum_scrubber
+from vault.node.soum_heartbeat import HeartbeatLoop
+from vault.node.soum_pinger import Pinger
 from vault.node.soum_storage import Corrupt, NotFound, Storage, decode_meta, encode_meta
 
 log = logging.getLogger("node")
@@ -37,7 +42,12 @@ class Node:
         self.lease_expiry: Optional[float] = None
         self.discarded = 0              # tmp files removed at startup → RegisterRequest.discarded_on_startup
         self.disk_full = False          # /_chaos/disk_full (S6)
+        self.config_version = -1        # last config applied from metadata (-1 = never fetched)
+        self.app_state = None           # FastAPI app.state, for /_vault/health's config_version
+        self.reach: dict[str, Reach] = {}   # pinger's row, sent in every heartbeat
         self.scrub = ScrubStatus()
+        self.scrub_wakeup = asyncio.Event()  # set by POST /v1/scrub while the scrubber loop runs
+        self.scrub_loop = False
         self._scrub_task: Optional[asyncio.Task] = None
         self._bg: set[asyncio.Task] = set()
 
@@ -80,9 +90,11 @@ class Node:
         t.add_done_callback(self._bg.discard)
         return t
 
-    def report(self, fid: str, problem: str, context: str) -> None:
-        """Tell metadata about a bad fragment (read repair / scrub), in the background."""
-        body = FragmentReport(fid=fid, node_id=self.pid, problem=problem, observed_by=self.pid, context=context)
+    def report(self, fid: str, problem: str, context: str, node_id: Optional[str] = None) -> None:
+        """Tell metadata about a bad fragment (read repair / scrub / repair source), in the background.
+        node_id = the machine holding the fragment (default: this one)."""
+        body = FragmentReport(fid=fid, node_id=node_id or self.pid, problem=problem, observed_by=self.pid,
+                              context=context)
         self.spawn(self._report(body))
 
     async def _report(self, body: FragmentReport) -> None:
@@ -94,14 +106,23 @@ class Node:
             log.info("report %s %s not delivered: %s", body.problem, body.fid, e)
 
     def trigger_scrub(self) -> None:
-        if self._scrub_task is None or self._scrub_task.done():
+        """POST /v1/scrub: wake the scrubber loop for an unpaced pass (or run one if no loop runs)."""
+        if not self.safety.scrub:
+            return
+        if self.scrub_loop:
+            self.scrub_wakeup.set()
+        elif self._scrub_task is None or self._scrub_task.done():
             self._scrub_task = self.spawn(self.scrub_pass())
 
-    async def scrub_pass(self) -> None:
-        """One full verification pass, recently written files first (§4.9). S4 adds pacing and the loop."""
+    async def scrub_pass(self, rate_mbps: Optional[float] = None) -> None:
+        """One full verification pass, recently written files first (§4.9).
+        rate_mbps paces reads (scrub.rate_mbps in the background loop); None = as fast as possible."""
         self.scrub.running, self.scrub.scanned, self.scrub.corrupt_found = True, 0, 0
         try:
             for fid in self.storage.scrub_order(self.cfg.scrub.recent_first_minutes * 60):
+                e = self.storage.entry(fid)
+                if e is None:
+                    continue
                 try:
                     ok = await self.storage.verify(fid)
                 except NotFound:
@@ -111,6 +132,8 @@ class Node:
                     self.scrub.corrupt_found += 1
                     log.warning("scrub: %s corrupt, quarantined", fid)
                     self.report(fid, "corrupt", "scrub")
+                if rate_mbps:
+                    await asyncio.sleep(e.file_size / (rate_mbps * 1_000_000))
             self.scrub.last_pass_at = time.time()
         finally:
             self.scrub.running = False
@@ -121,12 +144,17 @@ class Node:
                           fragments=self.storage.count(), scrub=self.scrub)
 
 
-def create_app(cfg: VaultConfig, pid: str) -> FastAPI:
+def create_app(cfg: VaultConfig, pid: str, start_loops: bool = True) -> FastAPI:
+    """start_loops=False: routes only (unit tests); heartbeat, pinger and scrubber don't run."""
     node = Node(cfg, pid)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await node.startup()
+        if start_loops:                                    # §4.14 step 3–4: register, heartbeat, scrub
+            node.spawn(HeartbeatLoop(node).run())
+            node.spawn(Pinger(pid, node.cfg, on_row=lambda row: setattr(node, "reach", row)).run())
+            node.spawn(soum_scrubber.run(node))
         try:
             yield
         finally:
@@ -134,6 +162,7 @@ def create_app(cfg: VaultConfig, pid: str) -> FastAPI:
 
     app = make_app(cfg, pid, lifespan)
     app.state.node = node
+    node.app_state = app.state
     st = node.storage
 
     @app.put("/v1/fragments/{fid}", status_code=201)
@@ -186,6 +215,14 @@ def create_app(cfg: VaultConfig, pid: str) -> FastAPI:
         await st.delete(fid)        # deleting an absent fragment is a no-op (trims are idempotent)
         return Response(status_code=204)
 
+    @app.post("/v1/fragments/{fid}/pull", status_code=201)
+    async def pull_fragment(fid: str, req: PullRequest, request: Request) -> PullResult:
+        if req.fid != fid:
+            raise VaultHTTPError(400, "bad_request", "The pull body is for a different fragment.")
+        if request.headers.get("x-vault-epoch") is not None:     # optional here; checked when sent
+            node.check_write(request.headers.get("x-vault-epoch"))
+        return await soum_pull.pull(node, req)
+
     @app.get("/v1/ping")
     async def ping() -> Ping:
         return Ping(pid=pid, epoch=node.epoch, ts=time.time())
@@ -203,5 +240,5 @@ def create_app(cfg: VaultConfig, pid: str) -> FastAPI:
     async def scrub_status() -> ScrubStatus:
         return node.scrub
 
-    # TODO S4: heartbeat, pinger, pull, scrub loop; S6: relay, node chaos
+    # TODO S6: relay, node chaos
     return app
