@@ -64,8 +64,8 @@ export default function KpiStrip() {
   const dash = "—";
 
   // 1. Effective copies
-  const minIfl = metrics?.ifl.min ?? summary?.min_ifl;
   const files = summary?.files ?? 0;
+  const minIfl = files > 0 ? (metrics?.ifl.min ?? summary?.min_ifl) : undefined;   // no files → nothing to score
   const atRisk = metrics?.ifl.at_risk_files ?? summary?.at_risk_files ?? 0;
 
   // 2. Recovery time
@@ -77,7 +77,7 @@ export default function KpiStrip() {
   const availTone = avail == null ? C.fg1 : avail >= 99.9 ? C.ok : avail >= 99 ? C.suspect : C.dead;
 
   // 4. Storage overhead
-  const overhead = metrics?.overhead.cluster ?? summary?.overhead;
+  const overhead = files > 0 ? (metrics?.overhead.cluster ?? summary?.overhead) : undefined;
   const byPolicy = metrics?.overhead.by_policy ?? {};
   const overheadDetail =
     Object.entries(byPolicy)
@@ -94,7 +94,7 @@ export default function KpiStrip() {
         label="Effective copies"
         value={minIfl ?? dash}
         tone={minIfl == null ? C.fg1 : iflColor(minIfl)}
-        detail={`${files} files · ${atRisk} at risk`}
+        detail={files > 0 ? `${files} files · ${atRisk} at risk` : "No files yet"}
         extra={metrics ? <IflBars histogram={metrics.ifl.histogram} /> : undefined}
       />
       <KpiTile
