@@ -56,3 +56,8 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - How to run / test it: `python -m vault up`, `cd web && npm run dev`, open http://localhost:3000/console. Without metadata's stream it shows "Sample data" after 2 s; the chaos dock still drives the real cluster.
 - Known issues / TODO: KPI "effective copies" colour uses the rep3 scale (see D1); an exact per-policy colour needs a below-target count from metrics (ask Jaiveer if needed). Move plug returns an error toast until Jaiveer's `PATCH /v1/nodes/{id}/labels` (J9).
 - Anything other teammates must know or do: **Everyone**: services now accept the dashboard from localhost/127.0.0.1 on any port (contracts README 13). **Urooz**: the Oracle page renders inside this shell; reuse `Popover`/`MenuItem` and `lib/states.ts` colours (read-only). **Jaiveer**: the dashboard reads `Snapshot`, `Event`, `Metrics`, `FateReport` exactly as in models.py; web/fixtures/*.json show what it expects.
+
+## [Hour 5] Merge point H5 + TECH_STACK φ fix
+- What was done: merged Soum S1–S3 and my A5 into main (151 tests green, cluster boots with Soum's real node, reset 3.9 s). Fixed the φ snippet in TECH_STACK §6.2 (found by Jaiveer: log10(0) after ~6 s of silence); verified that the new form gives identical values and stays finite.
+- Files created/changed: docs/TECH_STACK.md §6.2.
+- Anything other teammates must know or do: **Jaiveer**: J6 isn't on GitHub yet (no branch, no PR); push it and I'll merge. **Anyone copying snippets**: use the updated §6.2.

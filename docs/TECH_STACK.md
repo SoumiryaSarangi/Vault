@@ -225,10 +225,14 @@ class Phi:
         mean = statistics.fmean(self.iv)
         std = max(statistics.pstdev(self.iv), self.min_std)
         y = (t - mean) / std
-        e = math.exp(-y * (1.5976 + 0.070566 * y * y))
-        return -math.log10(e / (1 + e)) if t > mean else -math.log10(1 - 1 / (1 + e))
+        a = y * (1.5976 + 0.070566 * y * y)
+        if t > mean:   # -log10(e/(1+e)) with e = exp(-a), in log space so it never underflows
+            return a / math.log(10) + (math.log10(1 + math.exp(-a)) if a < 700 else 0.0)
+        e = math.exp(-a)
+        return -math.log10(1 - 1 / (1 + e))
 ```
 With 500 ms heartbeats: silence 1.0 s → φ 2.2, 1.5 s → φ 7.3, 2.0 s → φ 18. So φ ≥ 8 after ~1.6 s of silence, and a crash is confirmed `DOWN` at ~2.6 s.
+**Fixed 2026-09-26 (found by Jaiveer):** the first version computed `-log10(e/(1+e))` directly; after ~6 s of silence `e` underflows to 0 and `log10(0)` raises, which would freeze detection before `dead_after_s`. The log-space form gives identical values (verified: 2.18 / 7.21 / 17.96 at 1 / 1.5 / 2 s) and stays finite (654 at 6 s).
 
 ### 6.3 Crash-safe write (`node/storage.py`, RealDisk)
 ```python
