@@ -61,3 +61,10 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - What was done: merged Soum S1–S3 and my A5 into main (151 tests green, cluster boots with Soum's real node, reset 3.9 s). Fixed the φ snippet in TECH_STACK §6.2 (found by Jaiveer: log10(0) after ~6 s of silence); verified that the new form gives identical values and stays finite.
 - Files created/changed: docs/TECH_STACK.md §6.2.
 - Anything other teammates must know or do: **Jaiveer**: J6 isn't on GitHub yet (no branch, no PR); push it and I'll merge. **Anyone copying snippets**: use the updated §6.2.
+
+## [Hour 5] A7 Files page
+- What was done: Files page (DESIGN §5.4) on live metadata with a sample fallback. Tested at 1280×720 on sample data and live after `vault reset` (live buckets, empty state, seed → "not built yet" toast, upload → plain-language error until the gateway exists).
+- Files created/changed: web/app/console/files/page.tsx; web/components/files/{FileParts,InspectDrawer,UploadDropzone}.tsx; web/lib/files.ts; web/fixtures/files.json (validated against models.py); web/lib/contracts.ts (+InspectObject, InspectPage and the request types the dashboard sends; header now says it mirrors the browser-facing subset only).
+- Endpoints used: metadata `GET /v1/buckets`, `GET /v1/objects/{b}` (fallback when the gateway list isn't there), `GET /v1/inspect/objects`, `GET /v1/objects/{b}/{k}/health`; gateway `PUT/DELETE /{b}/{k}`, `GET /{b}/{k}` (download), `GET /{b}`; supervisor `POST /demo/seed`.
+- Known issues / TODO: uploads, downloads and deletes need Soum's gateway (S5); Seed needs Urooz's U2. The top bar still says "Sample data" until Jaiveer's J6 stream is merged, even when the Files page shows live (empty) metadata.
+- Anything other teammates must know or do: **Soum**: the page PUTs raw bytes to `/{bucket}/{key}` via XHR (Content-Length set by the browser) and expects `PutResult` JSON, or `ErrorBody` with `error` codes `quorum_not_met` / `not_enough_machines` / `metadata_unavailable` / `no_bucket`. **Jaiveer**: `/v1/inspect/objects` and `/health` power the table and drawer; please keep them fast (called every 3 s and 2 s).

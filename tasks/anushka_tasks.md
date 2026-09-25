@@ -37,8 +37,8 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 - Done: SSE → store, pollers (procs, chaos, metrics, fate, runs) with back-off, chaos dock → supervisor, 2D cluster view, sample-data fallback.
 - Left: verify against Jaiveer's real `/v1/stream` + `/v1/metrics` when J6 lands; `ConnectionBanner` ("Reconnecting to Vault…") when a live stream drops; boot/power-cut overlays are A10.
 
-### A7. Files page · H9 → H10.5
-- Buckets, dropzone with progress rows (`PUT` to gateway), `FileTable`/`ProtectionBadge`/`IflChip`/`PieceMatrix`, `InspectDrawer` + `FragmentGrid` + min-cut chips (DESIGN §5.4).
+### A7. Files page · ✅ done (on sample data + live metadata; uploads need Soum's S5)
+- Buckets (policy + overhead), dropzone with per-file progress rows (XHR PUT to the gateway) and "Saved on N machines" or §6.3 error copy, file table (size, protection, effective copies against each file's own target, healthy-piece dots, updated), empty state with Seed, inspect drawer (piece grid by chunk with machine initials coloured by state, minimum failure set, shared-domain warning, Download, Delete with confirm). One `/v1/inspect/objects` call for the whole table.
 
 ### A8. Fate page · H10.5 → H12
 - Editable label matrix → `PATCH /v1/nodes/{id}/labels`, domain cards, histogram, at-risk list, advice, cluster-wide risk (DESIGN §5.5).

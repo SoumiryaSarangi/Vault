@@ -1,0 +1,563 @@
+{
+ "buckets": {
+  "buckets": [
+   {
+    "name": "clinic",
+    "policy": {
+     "name": "rep3",
+     "type": "replication",
+     "n": 3,
+     "w": 2,
+     "k": null,
+     "m": null
+    }
+   },
+   {
+    "name": "archive",
+    "policy": {
+     "name": "ec42",
+     "type": "erasure",
+     "n": 6,
+     "w": 5,
+     "k": 4,
+     "m": 2
+    }
+   },
+   {
+    "name": "scratch",
+    "policy": {
+     "name": "rep2",
+     "type": "replication",
+     "n": 2,
+     "w": 2,
+     "k": null,
+     "m": null
+    }
+   },
+   {
+    "name": "oracle",
+    "policy": {
+     "name": "rep3",
+     "type": "replication",
+     "n": 3,
+     "w": 2,
+     "k": null,
+     "m": null
+    }
+   }
+  ]
+ },
+ "lists": {
+  "clinic": {
+   "bucket": "clinic",
+   "objects": [
+    {
+     "key": "xray-0042.png",
+     "size": 1378253,
+     "etag": "77816b9ecbc588a42b9a89ab3c750da41f1d5e0b4095ba4bfb50094f63b8c264",
+     "seq": 1,
+     "commit_seq": 1007,
+     "policy": "rep3",
+     "updated_at": 1790375280.0
+    },
+    {
+     "key": "xray-0043.png",
+     "size": 652707,
+     "etag": "d15e600d7235dd054dbf2fab1cc4f177f668e2a9a6725fe93ac3e06276faadf6",
+     "seq": 1,
+     "commit_seq": 1014,
+     "policy": "rep3",
+     "updated_at": 1790375340.0
+    },
+    {
+     "key": "lab-report-0113.pdf",
+     "size": 1676009,
+     "etag": "44e08cc76cc38b59dbe2c98d2cc6829bfa88a9305518a025a3fba89ff60b5ece",
+     "seq": 1,
+     "commit_seq": 1021,
+     "policy": "rep3",
+     "updated_at": 1790375400.0
+    },
+    {
+     "key": "lab-report-0114.pdf",
+     "size": 2750217,
+     "etag": "8d3d6176a182bbeb50f7d1c0b7a76b505032cc26bc343c36bbfb21cd1fcc086a",
+     "seq": 1,
+     "commit_seq": 1028,
+     "policy": "rep3",
+     "updated_at": 1790375460.0
+    },
+    {
+     "key": "ecg-0007.csv",
+     "size": 222527,
+     "etag": "d2b262d586bffacb834e62dfc68755b77ecfa3235973dce38d8430cce6f9d868",
+     "seq": 1,
+     "commit_seq": 1035,
+     "policy": "rep3",
+     "updated_at": 1790375520.0
+    },
+    {
+     "key": "discharge-0021.pdf",
+     "size": 323819,
+     "etag": "87392307c8b58d5220a4aed71895ad92bd372b098a60c1f4f9073a49e53a3434",
+     "seq": 1,
+     "commit_seq": 1042,
+     "policy": "rep3",
+     "updated_at": 1790375580.0
+    },
+    {
+     "key": "xray-0044.png",
+     "size": 2267652,
+     "etag": "5770a42e30c79493b2439c7609e9c0c80ee108539d16cb4d2682bdcb70d66635",
+     "seq": 1,
+     "commit_seq": 1049,
+     "policy": "rep3",
+     "updated_at": 1790375640.0
+    },
+    {
+     "key": "prescription-0310.pdf",
+     "size": 414810,
+     "etag": "859b12821f584969237bb6908d60f0f1e10bcacb3c8977cf098d9c2329c553cf",
+     "seq": 1,
+     "commit_seq": 1056,
+     "policy": "rep3",
+     "updated_at": 1790375700.0
+    },
+    {
+     "key": "mri-0002.dcm",
+     "size": 1553810,
+     "etag": "30ea4fb3a003b22755f78a2d8481717dec980e26655bb0aba6a73a07f588bd02",
+     "seq": 1,
+     "commit_seq": 1063,
+     "policy": "rep3",
+     "updated_at": 1790375760.0
+    },
+    {
+     "key": "vaccination-log-2026.xlsx",
+     "size": 2464390,
+     "etag": "a7f15a0c320a22ee51d165f74349a9fbd0ec5f78fdb4fe1f1a2eb203a4c02180",
+     "seq": 1,
+     "commit_seq": 1070,
+     "policy": "rep3",
+     "updated_at": 1790375820.0
+    },
+    {
+     "key": "lab-report-0115.pdf",
+     "size": 263265,
+     "etag": "592df8eaaf616454ebd07647d413e44d112967c0a82720538049ffd186ebc926",
+     "seq": 1,
+     "commit_seq": 1077,
+     "policy": "rep3",
+     "updated_at": 1790375880.0
+    },
+    {
+     "key": "xray-0045.png",
+     "size": 2148339,
+     "etag": "c9be45558af500b9142323d0438c0ec3ecab5cb3c60e83bfa7bf755db770e677",
+     "seq": 1,
+     "commit_seq": 1084,
+     "policy": "rep3",
+     "updated_at": 1790375940.0
+    }
+   ]
+  },
+  "archive": {
+   "bucket": "archive",
+   "objects": [
+    {
+     "key": "backup-2025-q4.tar",
+     "size": 5801018,
+     "etag": "b2fbf2ea334623593e8c4c9af9918a1722e89ae5c5f710a8fdebc0779cb984e0",
+     "seq": 1,
+     "commit_seq": 1087,
+     "policy": "ec42",
+     "updated_at": 1790375100.0
+    },
+    {
+     "key": "imaging-archive-2025.zip",
+     "size": 4314536,
+     "etag": "f07d95a75184ae0aae5ce5ee8818fccda81b923dfcd8cfb1a6403d7894ff7e85",
+     "seq": 1,
+     "commit_seq": 1090,
+     "policy": "ec42",
+     "updated_at": 1790375100.0
+    }
+   ]
+  },
+  "scratch": {
+   "bucket": "scratch",
+   "objects": []
+  },
+  "oracle": {
+   "bucket": "oracle",
+   "objects": []
+  }
+ },
+ "inspect": {
+  "objects": [
+   {
+    "bucket": "clinic",
+    "key": "xray-0042.png",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1007,
+    "sha256": "77816b9ecbc588a42b9a89ab3c750da41f1d5e0b4095ba4bfb50094f63b8c264",
+    "size": 1378253,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "xray-0043.png",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1014,
+    "sha256": "d15e600d7235dd054dbf2fab1cc4f177f668e2a9a6725fe93ac3e06276faadf6",
+    "size": 652707,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "lab-report-0113.pdf",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1021,
+    "sha256": "44e08cc76cc38b59dbe2c98d2cc6829bfa88a9305518a025a3fba89ff60b5ece",
+    "size": 1676009,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 2
+   },
+   {
+    "bucket": "clinic",
+    "key": "lab-report-0114.pdf",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1028,
+    "sha256": "8d3d6176a182bbeb50f7d1c0b7a76b505032cc26bc343c36bbfb21cd1fcc086a",
+    "size": 2750217,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "ecg-0007.csv",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1035,
+    "sha256": "d2b262d586bffacb834e62dfc68755b77ecfa3235973dce38d8430cce6f9d868",
+    "size": 222527,
+    "durable_min": 2,
+    "target": 3,
+    "ifl": 2
+   },
+   {
+    "bucket": "clinic",
+    "key": "discharge-0021.pdf",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1042,
+    "sha256": "87392307c8b58d5220a4aed71895ad92bd372b098a60c1f4f9073a49e53a3434",
+    "size": 323819,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "xray-0044.png",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1049,
+    "sha256": "5770a42e30c79493b2439c7609e9c0c80ee108539d16cb4d2682bdcb70d66635",
+    "size": 2267652,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "prescription-0310.pdf",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1056,
+    "sha256": "859b12821f584969237bb6908d60f0f1e10bcacb3c8977cf098d9c2329c553cf",
+    "size": 414810,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "mri-0002.dcm",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1063,
+    "sha256": "30ea4fb3a003b22755f78a2d8481717dec980e26655bb0aba6a73a07f588bd02",
+    "size": 1553810,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "vaccination-log-2026.xlsx",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1070,
+    "sha256": "a7f15a0c320a22ee51d165f74349a9fbd0ec5f78fdb4fe1f1a2eb203a4c02180",
+    "size": 2464390,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "lab-report-0115.pdf",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1077,
+    "sha256": "592df8eaaf616454ebd07647d413e44d112967c0a82720538049ffd186ebc926",
+    "size": 263265,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "clinic",
+    "key": "xray-0045.png",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1084,
+    "sha256": "c9be45558af500b9142323d0438c0ec3ecab5cb3c60e83bfa7bf755db770e677",
+    "size": 2148339,
+    "durable_min": 3,
+    "target": 3,
+    "ifl": 3
+   },
+   {
+    "bucket": "archive",
+    "key": "backup-2025-q4.tar",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1087,
+    "sha256": "b2fbf2ea334623593e8c4c9af9918a1722e89ae5c5f710a8fdebc0779cb984e0",
+    "size": 5801018,
+    "durable_min": 6,
+    "target": 3,
+    "ifl": 2
+   },
+   {
+    "bucket": "archive",
+    "key": "imaging-archive-2025.zip",
+    "state": "live",
+    "seq": 1,
+    "commit_seq": 1090,
+    "sha256": "f07d95a75184ae0aae5ce5ee8818fccda81b923dfcd8cfb1a6403d7894ff7e85",
+    "size": 4314536,
+    "durable_min": 6,
+    "target": 3,
+    "ifl": 2
+   }
+  ],
+  "next_cursor": null
+ },
+ "health": {
+  "clinic/xray-0042.png": {
+   "ifl": 3,
+   "target": 3,
+   "shared": [],
+   "min_cut": [
+    {
+     "key": "power",
+     "value": "A"
+    },
+    {
+     "key": "power",
+     "value": "B"
+    },
+    {
+     "key": "power",
+     "value": "C"
+    }
+   ],
+   "chunks": [
+    {
+     "idx": 0,
+     "needed": 1,
+     "durable": 3,
+     "available": 3,
+     "fragments": [
+      {
+       "frag_idx": 0,
+       "node_id": "n1",
+       "addr": "127.0.0.1:7101",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 1,
+       "node_id": "n3",
+       "addr": "127.0.0.1:7103",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 2,
+       "node_id": "n5",
+       "addr": "127.0.0.1:7105",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      }
+     ]
+    },
+    {
+     "idx": 1,
+     "needed": 1,
+     "durable": 3,
+     "available": 3,
+     "fragments": [
+      {
+       "frag_idx": 0,
+       "node_id": "n2",
+       "addr": "127.0.0.1:7102",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 1,
+       "node_id": "n4",
+       "addr": "127.0.0.1:7104",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 2,
+       "node_id": "n6",
+       "addr": "127.0.0.1:7106",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      }
+     ]
+    },
+    {
+     "idx": 2,
+     "needed": 1,
+     "durable": 3,
+     "available": 3,
+     "fragments": [
+      {
+       "frag_idx": 0,
+       "node_id": "n1",
+       "addr": "127.0.0.1:7101",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 1,
+       "node_id": "n4",
+       "addr": "127.0.0.1:7104",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 2,
+       "node_id": "n5",
+       "addr": "127.0.0.1:7105",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      }
+     ]
+    }
+   ]
+  },
+  "clinic/ecg-0007.csv": {
+   "ifl": 2,
+   "target": 3,
+   "shared": [
+    {
+     "key": "switch",
+     "value": "S2"
+    }
+   ],
+   "min_cut": [
+    {
+     "key": "power",
+     "value": "A"
+    },
+    {
+     "key": "node",
+     "value": "n4"
+    }
+   ],
+   "chunks": [
+    {
+     "idx": 0,
+     "needed": 1,
+     "durable": 2,
+     "available": 2,
+     "fragments": [
+      {
+       "frag_idx": 0,
+       "node_id": "n2",
+       "addr": "127.0.0.1:7102",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 1,
+       "node_id": "n3",
+       "addr": "127.0.0.1:7103",
+       "state": "lost",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 1,
+       "node_id": "n4",
+       "addr": "127.0.0.1:7104",
+       "state": "incoming",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      },
+      {
+       "frag_idx": 2,
+       "node_id": "n1",
+       "addr": "127.0.0.1:7101",
+       "state": "ok",
+       "sha256": null,
+       "route": "direct",
+       "slow": false
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
