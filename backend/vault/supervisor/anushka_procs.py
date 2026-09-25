@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vault.common.config import CONTROL_DISPLAY_NAMES, VaultConfig
+from vault.common.config import CONTROL_DISPLAY_NAMES, ENV_NODE_DISPLAY_NAME, ENV_NODE_LABELS, VaultConfig
 from vault.common.models import Proc
 
 log = logging.getLogger("sup.procs")
@@ -27,6 +27,8 @@ class Child:
     module: str
     display_name: str
     extra_args: list[str] = field(default_factory=list)
+    labels: dict[str, str] = field(default_factory=dict)      # nodes only (initial labels)
+    added: bool = False                                        # machine added at runtime (n7+)
     proc: Optional[asyncio.subprocess.Process] = None
     started_at: float = 0.0
 
@@ -42,11 +44,15 @@ class Procs:
         self.children["meta"] = Child("meta", "vault.metadata", CONTROL_DISPLAY_NAMES["meta"])
         self.children["gw"] = Child("gw", "vault.gateway", CONTROL_DISPLAY_NAMES["gw"])
         for node_id, n in cfg.nodes.items():
-            self.children[node_id] = Child(node_id, "vault.node", n.display_name, ["--id", node_id])
+            self.children[node_id] = Child(node_id, "vault.node", n.display_name, ["--id", node_id],
+                                           labels=dict(n.labels))
         self.children["oracle"] = Child("oracle", "vault.oracle", "Durability check")
 
-    def _env(self) -> dict[str, str]:
+    def _env(self, c: Child) -> dict[str, str]:
         env = dict(os.environ)
+        if c.added:   # not in vault.yaml: the node reads these via config.node_identity()
+            env[ENV_NODE_DISPLAY_NAME] = c.display_name
+            env[ENV_NODE_LABELS] = json.dumps(c.labels)
         env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH", "")]))
         env["VAULT_CONFIG"] = str(Path(os.environ.get("VAULT_CONFIG", "vault.yaml")).resolve())
         env["PYTHONUNBUFFERED"] = "1"
@@ -60,7 +66,7 @@ class Procs:
         logs.mkdir(parents=True, exist_ok=True)
         out = open(logs / f"{pid}.stdout.log", "ab")
         c.proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", c.module, *c.extra_args, env=self._env(), stdout=out, stderr=out)
+            sys.executable, "-m", c.module, *c.extra_args, env=self._env(c), stdout=out, stderr=out)
         out.close()   # the child holds its own handle
         c.started_at = time.time()
         self._save_pids()
@@ -72,6 +78,7 @@ class Procs:
         if c.running:
             c.proc.kill()
             await c.proc.wait()
+            self._save_pids()
             log.info("killed %s", pid)
         return self.view(pid)
 
@@ -108,6 +115,40 @@ class Procs:
         await self.start("meta")
         await asyncio.sleep(0.5)
         await asyncio.gather(*(self.start(p) for p in self.children if p != "meta"))
+
+    def node_ids(self) -> list[str]:
+        return [p for p, c in self.children.items() if c.module == "vault.node"]
+
+    def next_node_id(self) -> str:
+        return f"n{max(int(p[1:]) for p in self.node_ids()) + 1}"
+
+    def add_node(self, display_name: str, labels: dict[str, str]) -> str:
+        node_id = self.next_node_id()
+        self.children[node_id] = Child(node_id, "vault.node", display_name, ["--id", node_id],
+                                       labels=dict(labels), added=True)
+        return node_id
+
+    def drop_added_nodes(self) -> list[str]:
+        """Forget machines added at runtime (reset). They must already be stopped."""
+        gone = [p for p, c in self.children.items() if c.added]
+        for p in gone:
+            del self.children[p]
+        return gone
+
+    async def kill_many(self, pids: list[str]) -> list[str]:
+        """Kill at once (a power cut). Returns the pids that were running."""
+        running = [p for p in pids if self.children[p].running]
+        await asyncio.gather(*(self.kill(p) for p in running))
+        return running
+
+    async def start_many(self, pids: list[str]) -> list[str]:
+        """Start, metadata first so nodes can register. Returns the pids that were stopped."""
+        stopped = [p for p in pids if not self.children[p].running]
+        if "meta" in stopped:
+            await self.start("meta")
+            await asyncio.sleep(0.5)
+        await asyncio.gather(*(self.start(p) for p in stopped if p != "meta"))
+        return stopped
 
     async def kill_all(self) -> None:
         await asyncio.gather(*(self.kill(p) for p in self.children))

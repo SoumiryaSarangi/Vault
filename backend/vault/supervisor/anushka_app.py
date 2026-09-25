@@ -1,30 +1,37 @@
 """Supervisor + chaos controller API (ARCHITECTURE §6, §7.4). Owner: Anushka.
 
-Done: /procs, /procs/{pid}/kill|start|restart (A0); /chaos/link, /chaos/node/{pid}, /chaos/corrupt,
-      GET /chaos, /chaos/clear_all (A2).
-TODO (tasks/anushka_tasks.md A3): /power/cut, /power/restore, /nodes/add, /cluster/reset, /demo/seed, /chaos/script.
+Processes: GET /procs, POST /procs/{pid}/kill|start|restart
+Chaos:     POST /chaos/link, /chaos/node/{pid}, /chaos/corrupt, GET /chaos, POST /chaos/clear_all
+Power:     POST /power/cut, /power/restore
+Scripts:   POST /chaos/script, /chaos/script/{id}/stop
+Cluster:   POST /nodes/add, /cluster/reset, /demo/seed
 """
 from fastapi import FastAPI
 
 from vault.common.config import VaultConfig
-from vault.common.models import CorruptRequest, CorruptResult, FaultList, LinkRequest, NodeChaosRequest, Proc, ProcList
+from vault.common.models import (AddNodeRequest, CorruptRequest, CorruptResult, FaultList, LinkRequest,
+                                 NodeChaosRequest, PowerCutRequest, PowerCutResult, PowerRestoreRequest,
+                                 PowerRestoreResult, Proc, ProcList, ResetRequest, ResetResult, ScriptRequest,
+                                 ScriptStarted, SeedRequest, SeedResult)
 from vault.common.service import VaultHTTPError, make_app
 from vault.supervisor.anushka_chaos_ctl import ChaosController
+from vault.supervisor.anushka_cluster import ClusterOps
 from vault.supervisor.anushka_procs import Procs
 
 
 def create_app(cfg: VaultConfig, pid: str = "sup") -> FastAPI:
     procs = Procs(cfg)
     chaos = ChaosController(cfg, procs)
+    cluster = ClusterOps(cfg, procs, chaos)
 
     async def lifespan(app: FastAPI):
         await procs.start_all()
         yield
+        chaos.forget_all()
         await procs.kill_all()
 
     app = make_app(cfg, pid, lifespan)
-    app.state.procs = procs
-    app.state.chaos = chaos
+    app.state.procs, app.state.chaos, app.state.cluster = procs, chaos, cluster
 
     def _known(p: str) -> None:
         if p not in procs.children:
@@ -38,31 +45,20 @@ def create_app(cfg: VaultConfig, pid: str = "sup") -> FastAPI:
     @app.post("/procs/{p}/kill")
     async def kill(p: str) -> Proc:
         _known(p)
-        was_running = procs.children[p].running
-        view = await procs.kill(p)
-        if was_running:
-            await chaos.on_kill(p)
-        return view
+        return await chaos.kill_proc(p)
 
     @app.post("/procs/{p}/start")
     async def start(p: str) -> Proc:
         _known(p)
-        was_running = procs.children[p].running
-        view = await procs.start(p)
-        if not was_running:
-            await chaos.on_start(p)
-        return view
+        return await chaos.start_proc(p)
 
     @app.post("/procs/{p}/restart")
     async def restart(p: str) -> Proc:
         _known(p)
-        await procs.kill(p)
-        await chaos.on_kill(p)
-        view = await procs.start(p)
-        await chaos.on_start(p)
-        return view
+        await chaos.kill_proc(p)
+        return await chaos.start_proc(p)
 
-    # ── chaos (A2) ──
+    # ── chaos ──
     @app.get("/chaos")
     async def list_faults() -> FaultList:
         return FaultList(faults=chaos.active())
@@ -77,11 +73,44 @@ def create_app(cfg: VaultConfig, pid: str = "sup") -> FastAPI:
 
     @app.post("/chaos/corrupt")
     async def corrupt_random(req: CorruptRequest) -> CorruptResult:
-        """Dashboard "Damage copies" (1 / 10 / 50 random copies across running nodes)."""
+        """Dashboard "Damage copies": 1 / 10 / 50 random copies across running nodes."""
         return CorruptResult(corrupted=await chaos.corrupt_random(req.count or 10, req.mode))
 
     @app.post("/chaos/clear_all")
     async def clear_all() -> FaultList:
         return FaultList(faults=await chaos.clear_all())
+
+    # ── power ──
+    @app.post("/power/cut")
+    async def power_cut(req: PowerCutRequest) -> PowerCutResult:
+        return await chaos.power_cut(req)
+
+    @app.post("/power/restore")
+    async def power_restore(req: PowerRestoreRequest) -> PowerRestoreResult:
+        return await chaos.power_restore(req)
+
+    # ── scripts ──
+    @app.post("/chaos/script")
+    async def script(req: ScriptRequest) -> ScriptStarted:
+        return ScriptStarted(script_id=await chaos.run_script(req))
+
+    @app.post("/chaos/script/{sid}/stop")
+    async def script_stop(sid: str) -> FaultList:
+        if not chaos.stop_script(sid):
+            raise VaultHTTPError(404, "no_script", f"No running script {sid}.")
+        return FaultList(faults=chaos.active())
+
+    # ── cluster ──
+    @app.post("/nodes/add")
+    async def add_node(req: AddNodeRequest) -> Proc:
+        return await cluster.add_node(req)
+
+    @app.post("/cluster/reset")
+    async def reset(req: ResetRequest) -> ResetResult:
+        return await cluster.reset(req)
+
+    @app.post("/demo/seed")
+    async def seed(req: SeedRequest) -> SeedResult:
+        return await cluster.seed(req)
 
     return app

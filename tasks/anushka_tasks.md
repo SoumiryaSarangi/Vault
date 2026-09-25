@@ -22,7 +22,7 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 - `POST /chaos/link` (call `/_chaos/block` on both ends; `direction`), `POST /chaos/node/{pid}` (slow, freeze, corrupt, disk_full, clear → node `/_chaos/*`), `GET /chaos`, `POST /chaos/clear_all`. Each action: `POST meta /v1/incidents/fault` + `ExternalEvent` `chaos.*` with the DESIGN §5.8 copy. Kill via `/procs/{pid}/kill` also reports ground truth.
 - Tolerate metadata being down (the event is lost; the action still happens).
 
-### A3. Chaos controller II · H4 → H6
+### A3. Chaos controller II · ✅ done (power cut/restore + auto-restore, add machine, reset 3.8 s without seeding, seed + script endpoints wired to Urooz's code; they return 501 until U2/U3 land)
 - `POST /power/cut` (all, or by label from `GET /v1/cluster`, optional `restore_after_s`), `POST /power/restore`, `POST /nodes/add` (spawn n7+ with labels, `rpc.set_addr`), `POST /cluster/reset` (kill all, wipe `data/`, start all, create default buckets from `cluster.default_buckets`, seed via `urooz_seed.seed`, target ≤ 20 s), `POST /demo/seed`, `POST /chaos/script` (execute `urooz_scripts.steps`, report fault units).
 - Until Jaiveer's metadata exists, the event/ground-truth calls just log.
 
