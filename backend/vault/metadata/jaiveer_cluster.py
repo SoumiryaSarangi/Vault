@@ -11,7 +11,8 @@ from pydantic import ValidationError
 
 from vault.common.config import SafetyCfg
 from vault.common.events import MODE_SENTENCE
-from vault.common.models import (ActiveJob, ControlView, Heartbeat, HeartbeatReply, Incident, Inventory,
+from vault.common.models import (ActiveJob, ControlView, Heartbeat, HeartbeatReply, Incident, IncidentList,
+                                 Inventory, Metrics,
                                  InventoryResult, LabelsPatch, LinkView, ModeRequest, ModeResult, NodeState, NodeView,
                                  RegisterReply, RegisterRequest, RepairView, Snapshot, TrafficView)
 from vault.common.service import VaultHTTPError
@@ -60,7 +61,12 @@ async def heartbeat(request: Request, node_id: str, hb: Heartbeat) -> HeartbeatR
         raise VaultHTTPError(400, "node_mismatch", "Heartbeat body is for a different machine.",
                              {"path": node_id, "body": hb.node_id})
     via = request.headers.get("X-Vault-Via")
+    prev = brain.membership.members.get(node_id)
+    prev_pass = prev.scrub.last_pass_at if prev else None
     m, accepted, recovery = brain.membership.heartbeat(node_id, hb, via, time.monotonic())
+    if accepted and hb.scrub.last_pass_at and prev_pass and hb.scrub.last_pass_at != prev_pass:
+        await brain.emit("scrub.completed", {"node": node_id},
+                         {"n": hb.scrub.scanned, "c": hb.scrub.corrupt_found, "ms": 0, "mb": 0})
     lease = brain.cfg.detector.lease_ttl_ms
     if recovery is not None:
         await _recovered_in_grace(brain, node_id, recovery["s"])
@@ -255,3 +261,18 @@ async def build_snapshot(brain, force: bool = False) -> Snapshot:
 @router.get("/v1/cluster")
 async def get_cluster(request: Request) -> Snapshot:
     return await build_snapshot(_brain(request))
+
+
+# ── J8: metrics + incidents ──
+
+@router.get("/v1/metrics")
+async def get_metrics(request: Request) -> Metrics:
+    from vault.brain.jaiveer_metrics import build_metrics
+    return await build_metrics(_brain(request))
+
+
+@router.get("/v1/incidents")
+async def list_incidents(request: Request, limit: int = 20) -> IncidentList:
+    rows = await _brain(request).db.fetchall("SELECT * FROM incidents ORDER BY id DESC LIMIT ?",
+                                             (max(1, min(limit, 200)),))
+    return IncidentList(incidents=[Incident(**r) for r in rows])
