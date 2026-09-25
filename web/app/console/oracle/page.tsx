@@ -1,4 +1,4 @@
-// Durability check page. Vault vs Naive runs, violations, samples (DESIGN §5.6). Owner: Anushka.
+// Durability check page. Vault vs Naive runs, violations, samples (DESIGN §5.6). Owner: Urooz (task U6). Components go in components/oracle/urooz_*.tsx.
 export default function DurabilitycheckPage() {
   return (
     <main className="p-8">

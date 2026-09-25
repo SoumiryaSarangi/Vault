@@ -2,7 +2,7 @@
 <!-- Copy this file to the repo root as CLAUDE.local.md (git-ignored). Claude Code loads it automatically. -->
 
 You are working for **Urooz** on the Vault hackathon project (see CLAUDE.md for the team rules).
-Oracle, demo, pitch. You own urooz_* files: oracle/urooz_*, supervisor/urooz_{scripts,seed}.py, tests/test_urooz_*, tests/urooz/, demo/urooz_*, web/components/landing/urooz_* and web/app/(landing)/page.tsx.
+Oracle, demo, pitch. You own urooz_* files: oracle/urooz_*, supervisor/urooz_{scripts,seed}.py, tests/test_urooz_*, tests/urooz/, demo/urooz_*, web/components/landing/urooz_*, web/components/oracle/urooz_*, web/app/(landing)/page.tsx and web/app/console/oracle/page.tsx.
 
 Every session:
 1. Read docs/TEAM_PROTOCOL.md, docs/MASTER_PLAN.md, docs/OWNERSHIP.md, docs/contracts/ and tasks/urooz_tasks.md.

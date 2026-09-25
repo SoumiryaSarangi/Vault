@@ -25,6 +25,9 @@ If this folder, ARCHITECTURE and the code disagree: **stop and ask Anushka** (AR
 5. `ChaosState` is the body of `GET /_chaos` and every `/_chaos/*` POST (`netsim.py`); nodes add `node_faults` via `ns.add_state(...)`.
 6. `RunSummary` (rows of `GET /runs`) = `RunStatus` without `samples`/`timeline`, plus `chaos_script`.
 7. Every model ignores unknown fields, so adding an optional field later doesn't break older consumers.
+8. **Supervisor addition:** `POST /chaos/corrupt` with `CorruptRequest` (`count`, `mode`) → `CorruptResult`. Damages `count` random copies spread over the running nodes (the dashboard's "Damage copies 1 / 10 / 50"). Per-node damage stays `POST /chaos/node/{pid}` with `action: "corrupt"`.
+9. **`FaultReport.kind` values** sent by the supervisor to `POST /v1/incidents/fault`: `node_dead` (kill, freeze), `node_start`, `partition` (link cut; `subject` is `"a|b"`), `link_restored`, `corruption` (`subject` is a node id or `"cluster"`), `slow`, `disk_full`, `clear`, and `power_cut` (A3). Jaiveer uses `node_dead` / `partition` / `corruption` / `power_cut` for incident `fault_at`; the others can be ignored.
+10. **Chaos event types** (`ExternalEvent.type`): `chaos.kill`, `chaos.start`, `chaos.link_cut`, `chaos.link_restored`, `chaos.slow`, `chaos.freeze`, `chaos.corrupt`, `chaos.disk_full`, `chaos.clear`. `data.at` is the injection time.
 
 ## Headers (ARCHITECTURE §4.1–4.7, §7.3)
 

@@ -24,3 +24,6 @@ web/.env.local
 Thumbs.db
 .vscode/
 .idea/
+
+# Local tooling
+.playwright-mcp/

@@ -35,7 +35,7 @@ You own the thing that makes judges believe us: the **Durability Oracle**, an in
 
 ### U4. Landing page · H7 → H9 (or any time you're blocked)
 - **Files:** `web/app/(landing)/page.tsx`, `web/components/landing/urooz_Hero.tsx`, `urooz_HeroBackground.tsx`, `urooz_StoryScroller.tsx`, `urooz_ProofBand.tsx`, `urooz_CtaButton.tsx`
-- **Spec:** DESIGN §5.2 (wireframe, hero entrance, magnetic CTA, 4-beat scroll story, proof band), §4.2–4.3 (performance and smoothness rules), TECH_STACK §6.5–6.6 (verified `LiquidMetal` and `ShaderGradient` snippets), §6.7 (load WebGL with `next/dynamic`, `ssr: false`). Use `VaultMark` from `components/brand` (Anushka, A4). Until it exists, use `/brand/vault-mark.svg` as an `<img>`.
+- **Spec:** DESIGN §5.2 (wireframe, hero entrance, magnetic CTA, 4-beat scroll story, proof band), §4.2–4.3 (performance and smoothness rules), TECH_STACK §6.5–6.6 (verified `LiquidMetal` and `ShaderGradient` snippets), §6.7 (load WebGL with `next/dynamic`, `ssr: false`). The logo is ready: `import VaultMarkLazy from "@/components/brand/VaultMarkLazy"` (liquid metal, loads client-side, pauses offscreen) and `Wordmark` for the top bar. Don't import `VaultMark` directly.
 - **Budget:** ~3 hours total (DESIGN §5.2). Story beats can use a simple SVG until Anushka's `ClusterScene2D` exists; keep it simple.
 - **Done when:** `npm run build` passes; hero is complete within 1.5 s; no console errors; the CTA opens `/console`.
 - **Gated:** anything in `globals.css`, `layout.tsx` or shared components. Ask Anushka.
@@ -45,9 +45,13 @@ You own the thing that makes judges believe us: the **Durability Oracle**, an in
 - **Spec:** ARCHITECTURE §5 run lifecycle (`preparing`: supervisor `POST /cluster/reset` + metadata `POST /v1/mode`; `running`: workload + supervisor `POST /chaos/script`; `settling`: until repair queue empty or 60 s; `verifying`: final GET of every key + `/v1/inspect/objects` → checker; `done`), §7.5 API (`POST /runs`, `GET /runs`, `GET /runs/{id}`, SSE `/runs/{id}/stream`, `POST /runs/{id}/stop`, `409 run_active`). Emit `oracle.run_started`, `oracle.violation`, `oracle.run_completed` via metadata `POST /v1/events` (`ExternalEvent`).
 - **Done when:** a Vault-mode `standard` run completes end to end and reports 0 violations (M3 target: H9–H10).
 
-### U6. Vault vs Naive · H11 → H13 · **M5**
-- Run `standard` in both modes; confirm Naive shows > 0 violations with readable samples; fix false alarms in the checker (never "fix" by hiding real violations). Store run summaries for the Oracle page and the landing proof band.
-- If Anushka is behind on the Oracle page (R8), she may hand it to you. Take it only via a handoff.
+### U6. Oracle page + Vault vs Naive · page H7 → H9 on fixtures, runs H11 → H13 · **M5**
+- **The Oracle page is yours** (moved from Anushka in plan v1.1). **Files:** `web/app/console/oracle/page.tsx`, `web/components/oracle/urooz_OracleColumn.tsx`, `urooz_ViolationBreakdown.tsx`, `urooz_RunCounters.tsx`, `urooz_ChaosTimelineStrip.tsx`, `urooz_ViolationSamples.tsx`.
+- **Spec:** DESIGN §5.6 (two columns Vault | Naive, the big 72 px number, counters, chaos timeline strip with violation ticks, "what went wrong" samples, "Run again" warning), §6 voice, §9 empty state, §8.1 data flow (poll `GET /runs` every 2 s, SSE `/runs/{id}/stream` while a run is active). Types from `web/lib/contracts.ts` (`RunStatus`, `RunSummary`, `RunList`); URLs from `web/lib/api.ts` (`ORACLE_URL`, `getJson`, `postJson`).
+- **Build it first on fixtures:** `web/fixtures/oracle_runs.json` has a finished Vault run and a Naive run (checked against models.py). Switch to the live API once U5 works.
+- **Runs:** run `standard` in both modes; confirm Naive shows > 0 violations with readable samples; fix false alarms in the checker (never "fix" by hiding real violations).
+- **Done when:** the page reads correctly from 4 m in presenter mode, and matches DESIGN §5.6 with real runs.
+- The page sits inside Anushka's console layout (top bar, KPI strip, chaos dock). Don't edit the layout; ask via handoff.
 
 ### U7. End-to-end smoke tests · H11 → H14
 - **Files:** `tests/urooz/urooz_e2e_*.py`: one script per demo scene (PRD §9) that drives the supervisor + gateway and asserts the expected outcome (e.g. kill n3 → within 30 s all files back to target). These are the H14/H17 go/no-go checks (MASTER_PLAN §8).
@@ -67,4 +71,4 @@ You own the thing that makes judges believe us: the **Durability Oracle**, an in
 | I9 seed | you → Anushka's reset/seed endpoints | H7 |
 
 ## Gated items in your lane
-`ChaosStep` shape (agree with Anushka) · any change to models.py · any new dependency · any web file that isn't `urooz_*` or the landing `page.tsx`.
+`ChaosStep` shape (agree with Anushka) · any change to models.py · any new dependency · any web file that isn't `urooz_*`, the landing `page.tsx` or the Oracle `page.tsx`.

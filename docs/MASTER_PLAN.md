@@ -1,6 +1,6 @@
 # Vault: Master Plan
 
-**Status:** v1.0 · **Owner:** Anushka (changes are gated, TEAM_PROTOCOL §4) · **Date:** 2026-09-26
+**Status:** v1.1 (Oracle page → Urooz, 3D → stretch) · **Owner:** Anushka (changes are gated, TEAM_PROTOCOL §4) · **Date:** 2026-09-26
 **Built from:** `PRD.md` (P0 scope, demo script), `ARCHITECTURE.md` (components, contract), `TECH_STACK.md`, `DESIGN.md`, `TEAM_PROTOCOL.md`.
 **Read with:** `OWNERSHIP.md` (who owns which file) and your own `tasks/<name>_tasks.md`.
 
@@ -25,10 +25,12 @@ The full 3-minute demo adds, in order: silent corruption → cut one cable (rela
 
 | Person | Lane | Owns (summary; exact files in OWNERSHIP.md) |
 |---|---|---|
-| **Anushka** | Lead, integrator, full-stack | Shared contracts and `common/` infra, CLI, supervisor + chaos controller, the whole dashboard (except landing), merges to `main` |
+| **Anushka** | Lead, integrator, full-stack | Shared contracts and `common/` infra, CLI, supervisor + chaos controller, the dashboard (Overview, Files, Fate), merges to `main` |
 | **Jaiveer** | Control plane ("the brain") | `phi`, `placement`, `fate` (IFL) pure modules; metadata service (SQLite, uploads/commit, objects, snapshot, SSE); detector, scheduler, repair, incidents, metrics, summary, **Shared-Fate Auditor** |
 | **Soum** | Data plane ("the bytes") | `ec` (zfec); storage node (disk format, verify, scrub, heartbeat, pull, relay, node chaos); gateway (streaming PUT/GET, quorum, EC, failover); reconciler, GC, rebalancer |
-| **Urooz** | Proof, demo, pitch | **Durability Oracle** (ledger, checker, workload, runs); chaos scripts; demo seed data; landing page; e2e smoke tests; demo runbook, pitch, backup video |
+| **Urooz** | Proof, demo, pitch | **Durability Oracle** (ledger, checker, workload, runs) **and its dashboard page**; chaos scripts; demo seed data; landing page; e2e smoke tests; demo runbook, pitch, backup video |
+
+**Plan changes (v1.1):** the Oracle page moved from Anushka to Urooz (her data, her part of the pitch), and the 3D cluster view (A9) is a **stretch goal**: the 2D view is the demo view unless Anushka is ahead at H12.
 
 **Start right now (no dependencies):** Jaiveer J1–J3 (phi, placement, fate: pure functions with tests). Soum S1–S2 (erasure coding, crash-safe on-disk storage). Both only need `common/models.py` and `common/config.py`, which are already in the repo.
 
@@ -45,7 +47,7 @@ Each milestone is a merge point: everyone pushes, Anushka merges, and everyone p
 | **H7** | **M2 First light** | `curl -T` a 50 MB file through the gateway, download it, SHA-256 matches, fragments on 3 nodes' disks (S5, J5). Nodes heartbeat; dashboard shows 6 live machines over SSE (S4, J6, A6). Seed uploads 200 files (U2). | Soum, Jaiveer, Anushka, Urooz |
 | **H9** | **M3 Self-healing** ★ | Kill a machine from the dashboard → suspect → down → dead → repair → all files back to target copies; timeline + MTTR tile correct (J6–J7, S4, A6). First Oracle run in Vault mode on the real gateway: 0 violations (U3, U5). | Jaiveer, Soum, Anushka, Urooz |
 | **H11** | **M4 Faults** | Corrupt copies → found by scrub/read and repaired. Cut meta↔node → relay badge, **0 repairs**. Power cut all → recovery with 0 lost. Naive mode switches respected in every component. Chaos dock drives every action (S6, J7–J8, A3, A6–A7). | all |
-| **H13** | **M5 Headlines** | Shared-fate demo from ARCHITECTURE §4.12 works end to end from the Fate page (J9, A8). Oracle Vault vs Naive on `standard` shows 0 vs >0 (U5–U6, A8). `ec42` bucket round-trips and rebuilds. Rejoin trims extra copies; GC cleans up (S8). Landing done (U4). | all |
+| **H13** | **M5 Headlines** | Shared-fate demo from ARCHITECTURE §4.12 works end to end from the Fate page (J9, A8). Oracle Vault vs Naive on `standard` shows 0 vs >0 on the Oracle page (U5–U6). `ec42` bucket round-trips and rebuilds. Rejoin trims extra copies; GC cleans up (S8). Landing done (U4). | all |
 | **H14** | **FEATURE FREEZE** | Go/no-go on §8. After this: bug fixes and polish only. | Anushka |
 | H14–17 | Hardening | Full demo script (PRD §9) runs 3× in a row without a restart. Oracle violations are fixed before anything else. DESIGN §11 polish checklist. | all |
 | H17–19 | Record + rehearse | Record `heavy` Oracle runs (Vault and Naive) for the pitch. Record the backup video. Rehearse the pitch 3×. | Urooz (lead), all |
@@ -81,7 +83,7 @@ The longest chain is **Jaiveer J4 → J5 → J6 → J7**. If Jaiveer slips, Anus
 | Cut one cable | netsim (done), pinger reach rows, relay endpoint, PARTITIONED state, relay route | S4, S6, J6, A2 | M4 |
 | Shared fate | IFL, labels PATCH, auditor moves (make-before-break), advice, power cut by label, Fate page | J3, J9, A3, A8 | M5 |
 | Pull the plug | crash-safe writes (S2), WAL (J4), startup recovery + grace, `meta.recovered`, boot overlay | S2, J4, J6, A3, A10 | M4 |
-| The Oracle | ledger, checker, workload, seeded chaos scripts, runs API, Naive mode, Oracle page | U1–U6, A3, A8 | M5 |
+| The Oracle | ledger, checker, workload, seeded chaos scripts, runs API, Naive mode, Oracle page | U1–U6, A3 | M5 |
 
 Not in the 3-minute demo, but P0 and shown in Q&A if asked: add machine / rebalance (S9), rejoin trim (S8), `ec42` overhead (S5, J5).
 
@@ -119,13 +121,13 @@ Every seam is defined by `backend/vault/common/models.py` (Python) and `web/lib/
 | R4 | EC (`ec42`) bugs | S5 EC round trip fails at H11 | Demo uses `rep3` only. `archive` bucket shown with overhead 1.5× only if round-trip passes; otherwise hidden. |
 | R5 | Oracle finds violations | any non-zero Vault count | Violations are bugs and get fixed **before** features (PRD §11). Samples tell you the key and the rule. |
 | R6 | Windows process/port quirks (whole team is on Windows) | `vault up` fails, ports stuck | Already handled: supervisor kills stale children from `logs/children.json`. Directory fsync is skipped on Windows (TECH_STACK §6.3). Test kill/restart at every merge. |
-| R7 | 3D view slow or late | A9 not done by H13 | Ship `ClusterScene2D` (SVG) only; 3D is the first UI item cut. |
-| R8 | Dashboard scope too big for one person | A7/A8 behind at H11 | Urooz can take the Oracle page (her data, her story) via a handoff. Files page drops the inspect drawer's fragment grid first. |
+| R7 | 3D view slow or late | — | Decided up front: `ClusterScene2D` (SVG) is the demo view. 3D (A9) is a stretch goal, started only if Anushka is ahead at H12. |
+| R8 | Dashboard scope too big for one person | A7/A8 behind at H11 | Already reduced: the Oracle page is Urooz's (U6). Next cut: the Files page drops the inspect drawer's fragment grid. |
 | R9 | Demo timing flaky | detect/repair times vary | `VAULT_DEMO=1` (grace 8 s), seeded chaos, `vault reset` ≤ 20 s, recorded backup video, every chaos action is one button. |
 | R10 | Token budget runs out | anyone near their limit | Read only your ARCHITECTURE §0 sections. One task per Claude session. Don't re-plan. Use fixtures and fakes instead of pasting other people's code. |
 | R11 | Simulated page cache (P1) not built | — | Not P0. The Naive comparison still shows violations from no-verify, W=1, no-repair and no-fencing. Say "process kill ≠ power loss" honestly (PRD §10). |
 
-**Cut list, in order, if behind at H11:** (1) all P1 items, (2) 3D → 2D only, (3) rebalancer UI (keep the event line), (4) landing scroll story (keep the hero), (5) `ec42` in the demo, (6) auditor moves (keep IFL + advice).
+**Cut list, in order, if behind at H11:** (1) all P1 items, (2) 3D view (already a stretch goal), (3) rebalancer UI (keep the event line), (4) landing scroll story (keep the hero), (5) `ec42` in the demo, (6) auditor moves (keep IFL + advice).
 
 ---
 

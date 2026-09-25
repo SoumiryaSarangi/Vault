@@ -1,0 +1,199 @@
+{
+  "runs": [
+    {
+      "run_id": "r_naive_42",
+      "mode": "naive",
+      "seed": 42,
+      "state": "done",
+      "started_at": 1790379300.0,
+      "elapsed_s": 98.7,
+      "counters": {
+        "ops": 4790,
+        "acked_puts": 2402,
+        "acked_deletes": 481,
+        "reads": 1893,
+        "unknown": 9,
+        "failed": 5,
+        "faults_injected": 47
+      },
+      "violations": {
+        "lost": 23,
+        "damaged": 11,
+        "resurrected": 2,
+        "stale_read": 4,
+        "phantom_read": 0
+      },
+      "health": {
+        "under_protected": 61
+      },
+      "samples": [
+        {
+          "kind": "lost",
+          "key": "k042",
+          "human": "k042 was saved at 12:03:11 and is now missing.",
+          "technical": "acked put commit_seq=1811; final GET 404"
+        },
+        {
+          "kind": "damaged",
+          "key": "k117",
+          "human": "k117 returned bytes that were never written (damaged copy served).",
+          "technical": "final GET sha256 matches no PUT"
+        },
+        {
+          "kind": "stale_read",
+          "key": "k009",
+          "human": "k009 showed an older version after a newer one was already saved.",
+          "technical": "GET commit_seq=902 < acked 1044 completed before invoke"
+        },
+        {
+          "kind": "resurrected",
+          "key": "k150",
+          "human": "k150 was deleted at 12:03:40 but came back.",
+          "technical": "acked delete commit_seq=2210; final GET 200"
+        }
+      ],
+      "timeline": [
+        {
+          "t": 5,
+          "kind": "chaos",
+          "label": "corrupt 20 copies"
+        },
+        {
+          "t": 6.1,
+          "kind": "violation",
+          "label": "damaged"
+        },
+        {
+          "t": 10,
+          "kind": "chaos",
+          "label": "crash n2"
+        },
+        {
+          "t": 11.4,
+          "kind": "violation",
+          "label": "lost"
+        },
+        {
+          "t": 12.0,
+          "kind": "violation",
+          "label": "lost"
+        },
+        {
+          "t": 15,
+          "kind": "chaos",
+          "label": "cut gw↔n4"
+        },
+        {
+          "t": 20,
+          "kind": "chaos",
+          "label": "slow n5"
+        },
+        {
+          "t": 25,
+          "kind": "chaos",
+          "label": "power cut B"
+        },
+        {
+          "t": 26.3,
+          "kind": "violation",
+          "label": "stale_read"
+        },
+        {
+          "t": 35,
+          "kind": "chaos",
+          "label": "corrupt 20 copies"
+        },
+        {
+          "t": 36.2,
+          "kind": "violation",
+          "label": "damaged"
+        },
+        {
+          "t": 40,
+          "kind": "chaos",
+          "label": "crash n6"
+        },
+        {
+          "t": 41.5,
+          "kind": "violation",
+          "label": "lost"
+        },
+        {
+          "t": 45,
+          "kind": "chaos",
+          "label": "cut meta↔n1"
+        }
+      ]
+    },
+    {
+      "run_id": "r_vault_42",
+      "mode": "vault",
+      "seed": 42,
+      "state": "done",
+      "started_at": 1790379000.0,
+      "elapsed_s": 104.2,
+      "counters": {
+        "ops": 4812,
+        "acked_puts": 2311,
+        "acked_deletes": 470,
+        "reads": 1920,
+        "unknown": 14,
+        "failed": 37,
+        "faults_injected": 47
+      },
+      "violations": {
+        "lost": 0,
+        "damaged": 0,
+        "resurrected": 0,
+        "stale_read": 0,
+        "phantom_read": 0
+      },
+      "health": {
+        "under_protected": 0
+      },
+      "samples": [],
+      "timeline": [
+        {
+          "t": 5,
+          "kind": "chaos",
+          "label": "corrupt 20 copies"
+        },
+        {
+          "t": 10,
+          "kind": "chaos",
+          "label": "crash n2"
+        },
+        {
+          "t": 15,
+          "kind": "chaos",
+          "label": "cut gw↔n4"
+        },
+        {
+          "t": 20,
+          "kind": "chaos",
+          "label": "slow n5"
+        },
+        {
+          "t": 25,
+          "kind": "chaos",
+          "label": "power cut B"
+        },
+        {
+          "t": 35,
+          "kind": "chaos",
+          "label": "corrupt 20 copies"
+        },
+        {
+          "t": 40,
+          "kind": "chaos",
+          "label": "crash n6"
+        },
+        {
+          "t": 45,
+          "kind": "chaos",
+          "label": "cut meta↔n1"
+        }
+      ]
+    }
+  ]
+}

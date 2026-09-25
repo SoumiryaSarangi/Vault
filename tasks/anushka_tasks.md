@@ -17,7 +17,7 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 - Push `main`. Everyone runs README setup, `pytest`, `python -m vault up`. Send Jaiveer and Soum their START NOW prompts.
 - Decide MASTER_PLAN §9 (REFORGE 4-laptop doc).
 
-### A2. Chaos controller I · H2 → H4 · seam I5
+### A2. Chaos controller I · ✅ done (link, node slow/freeze/corrupt/disk_full/clear, `/chaos/corrupt` random, faults list, clear_all, kill/start reporting)
 - **Files:** `supervisor/anushka_chaos_ctl.py`, `supervisor/anushka_app.py`
 - `POST /chaos/link` (call `/_chaos/block` on both ends; `direction`), `POST /chaos/node/{pid}` (slow, freeze, corrupt, disk_full, clear → node `/_chaos/*`), `GET /chaos`, `POST /chaos/clear_all`. Each action: `POST meta /v1/incidents/fault` + `ExternalEvent` `chaos.*` with the DESIGN §5.8 copy. Kill via `/procs/{pid}/kill` also reports ground truth.
 - Tolerate metadata being down (the event is lost; the action still happens).
@@ -26,8 +26,8 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 - `POST /power/cut` (all, or by label from `GET /v1/cluster`, optional `restore_after_s`), `POST /power/restore`, `POST /nodes/add` (spawn n7+ with labels, `rpc.set_addr`), `POST /cluster/reset` (kill all, wipe `data/`, start all, create default buckets from `cluster.default_buckets`, seed via `urooz_seed.seed`, target ≤ 20 s), `POST /demo/seed`, `POST /chaos/script` (execute `urooz_scripts.steps`, report fault units).
 - Until Jaiveer's metadata exists, the event/ground-truth calls just log.
 
-### A4. Brand components · H3 (20 min) · Urooz needs these
-- `components/brand/VaultMark.tsx` (TECH_STACK §6.5, IntersectionObserver pause), `VaultMarkStatic.tsx` (gradient stroke), `Wordmark.tsx`.
+### A4. Brand components · ✅ done
+- `VaultMark.tsx` (liquid metal, pauses offscreen / reduced motion), `VaultMarkLazy.tsx` (use this: `next/dynamic`, static fallback while loading), `VaultMarkStatic.tsx`, `Wordmark.tsx`. Rendered in Chromium with 0 console errors.
 
 ### A5. Console shell + Overview on fixtures · H4 → H7
 - `ConsoleShell`, `TopBar`/`HealthSentence`/`ModeBanner`, `NodeList`/`NodeCard`/`PhiSparkline`/`DiskBar`/`LabelGlyphs`, `EventTimeline`/`EventItem` (Explain toggle), `KpiStrip`/`KpiTile`/`MttrBar`, `ChaosDock` UI (DESIGN §5.3, §5.8, §9, §10). Load `web/fixtures/*.json` into the store while the backend is off.
@@ -39,11 +39,11 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 ### A7. Files page · H9 → H10.5
 - Buckets, dropzone with progress rows (`PUT` to gateway), `FileTable`/`ProtectionBadge`/`IflChip`/`PieceMatrix`, `InspectDrawer` + `FragmentGrid` + min-cut chips (DESIGN §5.4).
 
-### A8. Fate + Oracle pages · H10.5 → H12
-- Fate: editable label matrix → `PATCH /v1/nodes/{id}/labels`, domain cards, histogram, at-risk list, advice, cluster-wide risk (DESIGN §5.5).
-- Oracle: two columns, big number, counters, chaos timeline strip, samples, "Run again" warning (DESIGN §5.6). Can go to Urooz via handoff if you're behind (R8).
+### A8. Fate page · H10.5 → H12
+- Editable label matrix → `PATCH /v1/nodes/{id}/labels`, domain cards, histogram, at-risk list, advice, cluster-wide risk (DESIGN §5.5).
+- The Oracle page moved to Urooz (U6, plan v1.1). Your part: the "Durability check" KPI tile reads her `GET /runs`.
 
-### A9. 3D cluster view · H12 → H13.5 · first thing to cut (R7)
+### A9. 3D cluster view · STRETCH: start only if ahead at H12 (R7)
 - `ClusterScene` per DESIGN §7 (ring, power islands, index icosahedron, state visuals, cut/relay lines, repair particle arcs); 2D toggle.
 
 ### A10. Overlays + settings · H12 → H13.5
