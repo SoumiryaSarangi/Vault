@@ -116,6 +116,9 @@ class ClusterOps:
 
             files = 0
             if req.seed:
+                # ALIVE comes with the first heartbeat; give every node a couple more beats to hold its lease,
+                # or early writes fall back to spare targets and land on machines that share a switch/disk batch.
+                await asyncio.sleep(1.5)
                 try:
                     files = (await self.seed(SeedRequest())).uploaded
                 except VaultHTTPError as e:
