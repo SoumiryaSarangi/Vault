@@ -74,3 +74,27 @@ def test_min_std_floor_applies():
         p.heartbeat(i * 0.5)
     v = p.phi(199 * 0.5 + 1.0)
     assert 1.0 < v < 20.0
+
+
+def test_long_silence_never_raises():
+    # Regression: exp() underflowed to 0 after ~6 s and log10(0) raised ValueError, freezing the detector.
+    p, last = _steady()
+    prev = 0.0
+    for s in [3, 5, 6, 8, 15, 60, 3600]:
+        v = p.phi(last + s)
+        assert v > prev and v < float("inf")
+        prev = v
+
+
+def test_stable_form_matches_reference_formula():
+    import math
+    p, last = _steady()
+    for s in [0.0, 0.2, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0]:
+        t = s
+        import statistics
+        mean = statistics.fmean(p.iv)
+        std = max(statistics.pstdev(p.iv), p.min_std)
+        y = (t - mean) / std
+        e = math.exp(-y * (1.5976 + 0.070566 * y * y))
+        ref = -math.log10(e / (1 + e)) if t > mean else -math.log10(1 - 1 / (1 + e))
+        assert p.phi(last + s) == pytest.approx(ref, rel=1e-9, abs=1e-12)

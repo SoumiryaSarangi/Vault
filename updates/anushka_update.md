@@ -61,3 +61,19 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - What was done: merged Soum S1–S3 and my A5 into main (151 tests green, cluster boots with Soum's real node, reset 3.9 s). Fixed the φ snippet in TECH_STACK §6.2 (found by Jaiveer: log10(0) after ~6 s of silence); verified that the new form gives identical values and stays finite.
 - Files created/changed: docs/TECH_STACK.md §6.2.
 - Anything other teammates must know or do: **Jaiveer**: J6 isn't on GitHub yet (no branch, no PR); push it and I'll merge. **Anyone copying snippets**: use the updated §6.2.
+
+## [Hour 5] A7 Files page
+- What was done: Files page (DESIGN §5.4) on live metadata with a sample fallback. Tested at 1280×720 on sample data and live after `vault reset` (live buckets, empty state, seed → "not built yet" toast, upload → plain-language error until the gateway exists).
+- Files created/changed: web/app/console/files/page.tsx; web/components/files/{FileParts,InspectDrawer,UploadDropzone}.tsx; web/lib/files.ts; web/fixtures/files.json (validated against models.py); web/lib/contracts.ts (+InspectObject, InspectPage and the request types the dashboard sends; header now says it mirrors the browser-facing subset only).
+- Endpoints used: metadata `GET /v1/buckets`, `GET /v1/objects/{b}` (fallback when the gateway list isn't there), `GET /v1/inspect/objects`, `GET /v1/objects/{b}/{k}/health`; gateway `PUT/DELETE /{b}/{k}`, `GET /{b}/{k}` (download), `GET /{b}`; supervisor `POST /demo/seed`.
+- Known issues / TODO: uploads, downloads and deletes need Soum's gateway (S5); Seed needs Urooz's U2. The top bar still says "Sample data" until Jaiveer's J6 stream is merged, even when the Files page shows live (empty) metadata.
+- Anything other teammates must know or do: **Soum**: the page PUTs raw bytes to `/{bucket}/{key}` via XHR (Content-Length set by the browser) and expects `PutResult` JSON, or `ErrorBody` with `error` codes `quorum_not_met` / `not_enough_machines` / `metadata_unavailable` / `no_bucket`. **Jaiveer**: `/v1/inspect/objects` and `/health` power the table and drawer; please keep them fast (called every 3 s and 2 s).
+
+## [Hour 6] Merge point: Jaiveer J6 + live dashboard check
+- What was done: merged J6 (detector, /v1/cluster, SSE, φ underflow fix). Checked live: metadata + Jaiveer's fake nodes → the dashboard switched from sample to live data by itself; silencing n3 showed "slow to answer. Checking…" → "stopped responding" → DEAD with VAULT_DEMO=1. With real nodes there are no false cut links and no slow flags (with fake nodes both appear only because fake nodes don't answer pings). Fixed KPIs on an empty cluster (were a red 0 and 0.0×; now "—").
+- Known issues / TODO: until Soum's S4 heartbeats land, every real node goes DEAD after the 10 s startup grace and the summary reads "Your data is safe. 0 of 6 machines are healthy." (Jaiveer, low priority; S4 fixes it in practice).
+
+## [Hour 7] A8 Fate page + A10 overlays and settings
+- What was done: Fate page (label matrix → PATCH /v1/nodes/{id}/labels, power-strip cards, cut-a-strip buttons, IFL histogram / at-risk / advice from /v1/fate when J9 lands, cluster-wide risk). Power-cut overlay (with "Turn the power back on") and boot overlay ("N of N files present. X lost." from counts before vs after). Settings drawer: Vault/Naive mode with confirm, Explain, presenter, Reset demo with confirm.
+- Files: web/app/console/fate/page.tsx; web/components/console/{Overlays,SettingsDrawer}.tsx; TopBar (gear), ConsoleShell (overlays).
+- Known issues / TODO: the boot overlay's final line waits for all machines to be ALIVE, so it can't complete until Soum's S4 heartbeats; it times out after 45 s so it never blocks the stage. Repair-speed and grace sliders (P1) are not built.

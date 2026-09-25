@@ -41,7 +41,7 @@ def dbpath(tmp_path):
 
 @pytest.fixture
 def c(dbpath):
-    app = create_app(CFG, "meta", db_path=dbpath)
+    app = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app) as client:
         client.app_ = app
         bring_up(client)
@@ -109,7 +109,7 @@ def test_plan_zero_size_and_errors(c):
 
 
 def test_not_enough_machines(dbpath):
-    app = create_app(CFG, "meta", db_path=dbpath)
+    app = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app) as c:
         bring_up(c, ["n1"])
         c.post("/v1/buckets", json={"name": "clinic", "policy": "rep3"})
@@ -345,13 +345,13 @@ def test_health_ifl_and_demo_relabel(c):
 # ── restart ──
 
 def test_commits_survive_restart(dbpath):
-    app = create_app(CFG, "meta", db_path=dbpath)
+    app = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app) as c:
         bring_up(c)
         c.post("/v1/buckets", json={"name": "clinic", "policy": "rep3"})
         for i in range(3):
             put(c, f"k{i}", data=bytes([i]))
-    app2 = create_app(CFG, "meta", db_path=dbpath)
+    app2 = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app2) as c:
         ev = c.get("/v1/events").json()["events"]
         rec = [e for e in ev if e["type"] == "meta.recovered"][-1]
