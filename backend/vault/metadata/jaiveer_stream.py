@@ -11,6 +11,7 @@ from collections import deque
 from typing import Any, Optional
 
 from fastapi import APIRouter, Request
+from sse_starlette.sse import EventSourceResponse
 
 from vault.common.models import Event, EventList, ExternalEvent
 from vault.common.service import VaultHTTPError
@@ -90,6 +91,40 @@ async def post_event(request: Request, body: ExternalEvent) -> Event:
           "human": body.human, "technical": body.technical, "data": body.data}
     stored = await request.app.state.bus.sink(ev)
     return Event(**stored)
+
+
+SNAPSHOT_EVERY_S = 0.5
+
+
+@router.get("/v1/stream")
+async def stream(request: Request):
+    """SSE (TECH_STACK §6.4): on connect the last 100 events, then `snapshot` every 500 ms and `event` per new Event."""
+    from vault.metadata.jaiveer_cluster import build_snapshot
+    brain = request.app.state.brain
+    bus: EventBus = request.app.state.bus
+    q = bus.subscribe()
+
+    def ev_msg(ev: dict[str, Any]) -> dict[str, str]:
+        return {"event": "event", "id": str(ev.get("id", "")), "data": json.dumps(ev, default=str)}
+
+    async def gen():
+        loop = asyncio.get_running_loop()
+        try:
+            for ev in list(bus.recent):
+                yield ev_msg(ev)
+            yield {"event": "snapshot", "data": (await build_snapshot(brain)).model_dump_json()}
+            next_at = loop.time() + SNAPSHOT_EVERY_S
+            while True:
+                try:
+                    ev = await asyncio.wait_for(q.get(), timeout=max(0.0, next_at - loop.time()))
+                    yield ev_msg(ev)
+                except asyncio.TimeoutError:
+                    yield {"event": "snapshot", "data": (await build_snapshot(brain)).model_dump_json()}
+                    next_at = loop.time() + SNAPSHOT_EVERY_S
+        finally:
+            bus.unsubscribe(q)
+
+    return EventSourceResponse(gen(), ping=15)
 
 
 def latest_event(bus: EventBus) -> Optional[dict[str, Any]]:

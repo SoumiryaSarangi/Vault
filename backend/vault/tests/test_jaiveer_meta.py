@@ -47,7 +47,7 @@ def dbpath(tmp_path):
 
 @pytest.fixture
 def client(dbpath):
-    app = create_app(CFG, "meta", db_path=dbpath)
+    app = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app) as c:
         c.app_ = app
         yield c
@@ -222,13 +222,13 @@ def test_enqueue_job_dedupes(client):
 # ── restart ──
 
 def test_everything_survives_restart(dbpath):
-    app = create_app(CFG, "meta", db_path=dbpath)
+    app = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app) as c:
         c.post("/v1/buckets", json={"name": "clinic", "policy": "rep3"})
         c.post("/v1/nodes/register", json=reg("n7", display_name="New PC", labels={"power": "B"}))
         c.patch("/v1/nodes/n3/labels", json={"labels": {"power": "A"}})
         c.post("/v1/mode", json={"mode": "naive"})
-    app2 = create_app(CFG, "meta", db_path=dbpath)
+    app2 = create_app(CFG, "meta", db_path=dbpath, start_loops=False)
     with TestClient(app2) as c:
         assert [b["name"] for b in c.get("/v1/buckets").json()["buckets"]] == ["clinic"]
         ms = app2.state.membership
