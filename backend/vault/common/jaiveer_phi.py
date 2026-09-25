@@ -32,7 +32,11 @@ class Phi:
         mean = statistics.fmean(self.iv)
         std = max(statistics.pstdev(self.iv), self.min_std)
         y = (t - mean) / std
-        e = math.exp(-y * (1.5976 + 0.070566 * y * y))
-        if t > mean:
-            return -math.log10(e / (1 + e))
-        return -math.log10(1 - 1 / (1 + e))
+        # TECH_STACK §6.2 computes e = exp(a) and -log10(e/(1+e)) (both branches are the same quantity). For long
+        # silences exp(a) underflows to 0 and log10(0) raises, so use the identical, stable form:
+        #   φ = log10(1 + e) − log10(e) = log1p(e)/ln10 − a/ln10
+        a = -y * (1.5976 + 0.070566 * y * y)
+        e = math.exp(a) if a < 700 else math.inf
+        if math.isinf(e):
+            return 0.0
+        return (math.log1p(e) - a) / math.log(10)

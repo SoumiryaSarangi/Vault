@@ -110,3 +110,24 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Anything other teammates must know or do:
   - **Soum:** switch the gateway from `soum_fake_meta.py` to the real metadata once this is on `main`. On `< W` after spares you can simply POST the commit (metadata answers 409, aborts the version and emits `write.quorum_failed`, which is the event your task mentions), or call `/abort` (no event). `write.quorum_failed` only fires from commit.
   - **Urooz:** `GET /v1/inspect/objects` is ready for the Oracle checker (I7).
+
+## [Hour 5] J6 Detector, cluster snapshot, SSE stream
+- What was done: failure detection (§4.5 state machine, §4.6 epochs), metadata's own pings (§4.7), the cluster snapshot (§8.2) with summary levels and sentences (DESIGN §6.2), abnormal links with relays, the live SSE stream, ground-truth fault reports and gateway participant reports. **Plus a J1 bug fix** (below).
+- Files created/changed:
+  - `backend/vault/brain/jaiveer_detector.py` (tick every 100 ms + pinger), `jaiveer_membership.py` (state machine support, reach rows, evidence), `jaiveer_incidents.py` (FaultLog + open_incident_tx), `jaiveer_summary.py` (levels + sentence; J8 refines)
+  - `backend/vault/metadata/jaiveer_cluster.py` (snapshot builder, `GET /v1/cluster`, recovered-in-grace), `jaiveer_stream.py` (`GET /v1/stream`), `jaiveer_reports.py` (`/v1/incidents/fault`, `/v1/participants/{pid}/report`), `jaiveer_app.py` (Brain fields, `start_loops` flag)
+  - `backend/vault/common/jaiveer_phi.py` (**fix**), `backend/vault/tests/test_jaiveer_detector.py` (15 tests), `test_jaiveer_phi.py` (+2), test_jaiveer_meta/commit (loops off in tests)
+- Endpoints:
+  - `GET /v1/cluster` → `Snapshot` (cached 500 ms; also refreshes metadata's rpc topology)
+  - `GET /v1/stream` → SSE: on connect the last 100 `event`s, then `snapshot` every 500 ms and an `event` per new Event (`data` = JSON of `Snapshot` / `Event`)
+  - `POST /v1/incidents/fault` `FaultReport` → 204 (fault_at for incidents; `slow`/`disk_full` become node `faults` chips; `clear` clears them)
+  - `POST /v1/participants/{pid}/report` `ParticipantReport` → 204 (gateway reach row → links; `stats` → snapshot `traffic`). read.failover aggregation comes in J7.
+- State machine (tick 100 ms): ALIVE → SUSPECT at φ ≥ 8 (~1.6–2.0 s of silence) → PARTITIONED if any participant reached it ok in the last 2 s, else DOWN after confirm_ms (1 s) → DEAD after dead_after_s from the **last sign of life** (heartbeat or peer evidence). DEAD: epoch++, fragments → `lost`, incident (`fault_at` from the supervisor's `node_dead`/`power_cut` report if present, else last heartbeat), repair jobs for every fragment no longer durable elsewhere (P0 if one copy left, else P1). Heartbeat recoveries: SUSPECT/PARTITIONED → ALIVE at once; DOWN → ALIVE after 3 heartbeats in 2 s (`node.recovered_in_grace`, counted in kv `repairs_avoided`). Startup grace (10 s): no DOWN/DEAD; a node that never heartbeats after the grace → DOWN. Flags: `slow` (p50 RTT > 300 ms or ≥ 20% loss from others' pings) → `node.slow`; `fenced` → `node.fenced`; route direct↔relay → `link.relayed` / `link.restored`.
+- **J1 fix (φ):** the TECH_STACK §6.2 formula computes `exp(-y·…)`, which underflows to 0 after ~6 s of silence, and then `log10(0)` raises. The detector tick would have failed on every pass, so a killed machine would have sat at DOWN forever and never been rebuilt. Now uses the identical but stable form `φ = (log1p(e) − a)/ln10`; a test checks it matches the original formula exactly on 0–3 s and never raises up to an hour.
+- How to run / test it:
+  - `python -m pytest -q` → 131 passed.
+  - Live (what I ran): `VAULT_DEMO=1`, `python -m vault.metadata`, `python tests/jaiveer/jaiveer_fake_nodes.py --stop n3 --after 6`, 3 files stored, `curl -N localhost:7000/v1/stream` → `node.suspect` → `node.down` → `node.dead` with **detect = 2.61 s**, DEAD at +8.0 s, 2 repair jobs queued (P1), summary "Your data is safe, but 2 files have fewer copies than usual…", 44 snapshots in 22 s.
+- Known issues / TODO: repair dispatch (jobs stay queued) is J7. `repair.mbps`, job progress and `traffic` fill in as J7 and Soum's S7 land. DRAINING/REJOINING machines aren't failure-detected yet (rare in the demo).
+- Anything other teammates must know or do:
+  - **Anushka:** `/v1/cluster` exists now, so reset's "wait for ALIVE" works (with real heartbeats). SSE is at `GET /v1/stream` (events `snapshot` and `event`). `links` lists abnormal links only, with a `relay` when some node can reach both ends. Node `faults` come from your `FaultReport`s (`slow`, `disk_full`).
+  - **Soum:** heartbeats now drive SUSPECT/DOWN/DEAD for real; send `reach` rows for every peer + `meta` in each heartbeat (PARTITIONED and links depend on them). Gateway: `POST /v1/participants/gw/report` with `reach` + `stats` once a second (S7). Metadata pings every node at `GET /v1/ping` once a second.

@@ -69,6 +69,17 @@ class Brain:
         self.overrides: dict[str, Any] = {}
         self.started_mono = time.monotonic()
         self.started_wall = time.time()
+        # J6: snapshot cache, ground truth, gateway stats; J7 fills repair_mbps / job_progress
+        from vault.brain.jaiveer_incidents import FaultLog
+        self.faults = FaultLog()
+        self._snap = None
+        self._snap_at = 0.0
+        self.gw_stats: tuple[Any, float] = (None, 0.0)
+        self.repair_mbps = 0.0
+        self.job_progress: dict[int, float] = {}
+
+    def invalidate_snapshot(self) -> None:
+        self._snap_at = 0.0
 
     # ── BrainContext ──
     def now(self) -> float:
@@ -219,7 +230,9 @@ def _start_brain_loops(brain: Brain) -> list[asyncio.Task]:
     return tasks
 
 
-def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = None) -> FastAPI:
+def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = None,
+               start_loops: bool = True) -> FastAPI:
+    """start_loops=False: no detector/scheduler/etc. background loops (tests drive them by hand)."""
     db = Database(db_path or cfg.data_path("meta", "vault.db"), durable=cfg.safety.durable_writes)
     membership = Membership(cfg)
     bus = EventBus(db)
@@ -228,6 +241,8 @@ def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = Non
     async def lifespan(app: FastAPI):
         brain: Brain = app.state.brain
         brain.rpc = app.state.rpc
+        brain.started_mono, brain.started_wall = time.monotonic(), time.time()
+        brain.membership.started_at = brain.started_mono
         t0 = time.perf_counter()
         await db.open()
         brain.db_open_ms = (time.perf_counter() - t0) * 1000
@@ -238,7 +253,7 @@ def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = Non
         for n in membership.nodes():                    # added machines (n7+) the rpc doesn't know yet
             if n.id not in cfg.nodes:
                 brain.rpc.set_addr(n.id, n.addr)
-        tasks = _start_brain_loops(brain)
+        tasks = _start_brain_loops(brain) if start_loops else []
         try:
             yield
         finally:
@@ -253,10 +268,11 @@ def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = Non
     brain.db_open_ms = 0.0
     app.state.brain, app.state.bus, app.state.db, app.state.membership = brain, bus, db, membership
 
-    from vault.metadata import jaiveer_cluster, jaiveer_objects, jaiveer_stream
+    from vault.metadata import jaiveer_cluster, jaiveer_objects, jaiveer_reports, jaiveer_stream
     app.include_router(jaiveer_cluster.router)
     app.include_router(jaiveer_objects.router)
     app.include_router(jaiveer_stream.router)
+    app.include_router(jaiveer_reports.router)
     try:
         from vault.metadata import jaiveer_uploads
         if hasattr(jaiveer_uploads, "router"):
