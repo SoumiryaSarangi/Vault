@@ -77,3 +77,8 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - What was done: Fate page (label matrix → PATCH /v1/nodes/{id}/labels, power-strip cards, cut-a-strip buttons, IFL histogram / at-risk / advice from /v1/fate when J9 lands, cluster-wide risk). Power-cut overlay (with "Turn the power back on") and boot overlay ("N of N files present. X lost." from counts before vs after). Settings drawer: Vault/Naive mode with confirm, Explain, presenter, Reset demo with confirm.
 - Files: web/app/console/fate/page.tsx; web/components/console/{Overlays,SettingsDrawer}.tsx; TopBar (gear), ConsoleShell (overlays).
 - Known issues / TODO: the boot overlay's final line waits for all machines to be ALIVE, so it can't complete until Soum's S4 heartbeats; it times out after 45 s so it never blocks the stage. Repair-speed and grace sliders (P1) are not built.
+
+## [Hour 7] Oracle page (U6 UI, taken over from Urooz)
+- What was done: Durability check page (DESIGN §5.6): Vault | Naive columns with the big violation number, breakdown, counters, state pill, Run again (confirm; POST /runs), chaos timeline with violation ticks, "what went wrong" samples. Reads Oracle GET /runs (store) + GET /runs/{id}; falls back to web/fixtures/oracle_runs.json. Fits 1280×720.
+- Files: web/app/console/oracle/page.tsx; handoffs/urooz_to_anushka_oracle_page.md; docs/OWNERSHIP.md.
+- Anything other teammates must know or do: **Urooz**: the page expects `GET /runs` → RunList, `GET /runs/{id}` → RunStatus (with samples + timeline, `t` in seconds from start), `POST /runs` → RunCreated, exactly as models.py §7.5.
