@@ -129,6 +129,9 @@ async def build_summary(ctx, files: Optional[list[FileHealth]] = None, repair_pc
     else:
         level = "ok"
         human = f"Your data is safe. {alive} of {len(nodes)} machines are healthy."
+        ms = getattr(ctx, "membership", None)
+        if ms is not None and nodes and not any(m.last_hb is not None for m in ms.members.values()):
+            human = f"Vault is starting: waiting for machines to check in (0 of {len(nodes)} so far)."
     if ctx.mode == "naive":
         human = MODE_SENTENCE["naive"] + " " + human
     return Summary(level=level, human=human, technical=f"min IFL {min_ifl}; {under_chunks} chunks below target",
