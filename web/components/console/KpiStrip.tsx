@@ -82,7 +82,7 @@ export default function KpiStrip() {
   const overheadDetail =
     Object.entries(byPolicy)
       .map(([p, x]) => `${protectionLabel(p)} ${x.toFixed(1)}×`)
-      .join(" · ") || "No files yet";
+      .join(" · ") || (files > 0 ? "Measured across all files" : "No files yet");
 
   // 5. Durability check: latest Vault-mode run
   const run = runs.find((r) => r.mode === "vault" && r.state === "done");
