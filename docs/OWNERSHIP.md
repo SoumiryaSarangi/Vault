@@ -59,8 +59,7 @@ One file, one owner. Only the owner edits it. Anyone else writes a handoff (`han
 | `app/layout.tsx`, `app/globals.css` (design tokens) | Anushka | gated |
 | `app/(landing)/page.tsx` | **Urooz** | U4 |
 | `components/landing/urooz_*.tsx` | **Urooz** | U4 |
-| `app/console/oracle/page.tsx` | **Urooz** | U6 |
-| `components/oracle/urooz_*.tsx` | **Urooz** | U6 |
+| `app/console/oracle/page.tsx`, `components/oracle/*` | Anushka (handed over by Urooz, see handoffs/urooz_to_anushka_oracle_page.md) | U6 UI |
 | `app/console/**` except the Oracle page (layout + Overview, Files, Fate) | Anushka | A5–A10 |
 | `components/brand/*` (VaultMark, VaultMarkLazy, VaultMarkStatic, Wordmark) | Anushka | A4 ✅; Urooz uses them |
 | `components/{console,scene,files,fate,ui}/*` | Anushka | A5–A10 |
