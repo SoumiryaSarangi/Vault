@@ -104,3 +104,47 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Anything other teammates must know or do:
   - **Jaiveer (repair, J7):** send `X-Vault-Epoch` with every `DELETE`. A node answers `503 fenced` until its first heartbeat reply grants a lease.
   - **Anushka:** `/_chaos/corrupt` and `/_chaos/disk_full` still come in S6.
+
+## [Hour 5] S4 Node background loops + pull (seam I3 ready for Jaiveer's detector)
+- What was done: nodes now register, heartbeat, hold leases, ping everyone, repair by pull, and scrub continuously. Tested live against Jaiveer's J4/J5 metadata.
+  - **Heartbeat** (`soum_heartbeat.py`):
+    - Register on startup with `node_identity()` and `discarded_on_startup` (sent once), then push inventory right away (REJOINING → ALIVE), then every 500 ms.
+    - The lease runs from the moment the request is **sent**, and is persisted in `node.json`.
+    - A `DEAD` reply never extends the lease; the node re-registers in the same tick.
+    - Config is re-read after every (re-)register and whenever a reply's `config_version` **differs** (not only when it's newer), because a restarted metadata could count again from 0. Applies `safety` and `rpc.relay_enabled`.
+    - Inventory every 30 s, staggered (n1 at 0 s, n2 at 5 s, …).
+    - Logs only state changes (metadata reachable/unreachable, fenced/unfenced).
+  - **Pinger** (`soum_pinger.py`, reusable by the gateway in S7):
+    - Every 1 s, direct only, 500 ms timeout. Nodes get `/v1/ping`; meta and gw get `/_vault/health` (metadata has no `/v1/ping`). Any HTTP answer = reachable.
+    - The row goes into the heartbeat's `reach`.
+    - Also `GET meta /v1/cluster` each tick → `rpc.update_topology(...)`. 404 (until J6) or errors keep the last topology.
+  - **Pull** (`soum_pull.py`, `POST /v1/fragments/{fid}/pull`):
+    - `copy`: sources in order; the first whose bytes hash to `expected_sha256` wins.
+    - `ec_rebuild`: fetch the other fragments in parallel, verify each against the sha in its own `X-Vault-Meta`, rebuild from k, check against `expected_sha256`.
+    - A source that returns bad bytes is reported as `corrupt` (`context: repair`, `node_id` = that source).
+    - Fenced → 503. Already stored and intact → 201 with `source_used: "local"` (safe retry). `X-Vault-Epoch` is optional here and checked if sent.
+  - **Scrubber** (`soum_scrubber.py`):
+    - Continuous passes paced at `scrub.rate_mbps`, recent files first, at least 10 s between pass starts.
+    - `POST /v1/scrub` wakes it for an unpaced pass.
+    - Fully off in Naive mode (`safety.scrub` false), even on request, so the Vault vs Naive comparison stays fair.
+- Files created/changed: `node/soum_heartbeat.py`, `node/soum_pinger.py`, `node/soum_pull.py`, `node/soum_scrubber.py`, `node/soum_app.py` (loops in the lifespan, pull route, `create_app(cfg, pid, start_loops=True)`), `tests/test_soum_node_loops.py` (new, 13 tests), `tests/test_soum_node_api.py` (uses `start_loops=False`)
+- Endpoints / functions / components exposed:
+  - `POST /v1/fragments/{fid}/pull` `PullRequest` → `201 PullResult` (`source_used`: node id, `"ec:n1,n3,…"` or `"local"`) · `400 bad_request` · `424 no_valid_source` (detail `tried`) · `503 fenced` · `507 disk_full`
+  - Node → meta calls: `POST /v1/nodes/register`, `POST /v1/nodes/{id}/heartbeat` (every 500 ms), `POST /v1/nodes/{id}/inventory`, `GET /v1/config`, `GET /v1/cluster`, `POST /v1/reports/fragment`.
+  - `create_app(cfg, pid, start_loops=True)`: the extra keyword is for unit tests; the `vault.node` shim is unchanged.
+  - `Pinger(pid, cfg, on_row)`: the gateway will reuse it in S7.
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_node_loops.py` (13 tests); all Soum tests 50 passed; full suite 164 passed.
+  - Live with `python -m vault up`:
+    - All 6 nodes register (6× `node.joined` in `/v1/events`), unfenced, lease ≈ 5 s ahead.
+    - PUT on n1 → pull onto n2 → 201 in 38 ms, bytes match.
+    - Kill meta → nodes fence ~4.5 s later (`DELETE` → 503). Start meta → `DEAD` reply → re-register → unfenced within ~1 s.
+    - `POST /v1/mode` naive → nodes apply config within ~1 s.
+- Known issues / TODO:
+  - While metadata is down, heartbeats fall back to relaying through a peer, and peers answer 404 until S6 adds `/v1/relay`. So relayed heartbeats (the cut-cable demo) start working in S6.
+  - Topology stays empty until J6's `/v1/cluster`; rpc still tries relays in order without it.
+- Anything other teammates must know or do:
+  - **Jaiveer (J6 detector):** real heartbeats arrive every 500 ms with `reach` (every node + meta), `scrub`, `fenced`, `disk_used` and `fragments`. `tests/jaiveer/jaiveer_fake_nodes.py` is no longer needed with `vault up`.
+  - **Jaiveer (J7 repair):** pull is ready; see the endpoint above. `source_used` tells you which source was used. A bad source is already reported by the node.
+  - **Jaiveer:** metadata restarts are handled via the `DEAD` reply; nothing else is needed.
+  - **Note:** the full test suite now runs slower on this machine (~65 s, mostly `test_jaiveer_meta` / `test_jaiveer_commit` setup, ~1.3 s each). That is the same with and without S4, so it looks like disk or antivirus load on the SQLite tests, not a code change.
