@@ -197,3 +197,33 @@ def test_startup_sentence(tmp_path):
     with TestClient(app) as c:
         s = c.get("/v1/cluster").json()["summary"]["human"]
         assert s == "Vault is starting: waiting for machines to check in (0 of 6 so far)."
+
+
+# ── J8: metrics / incidents ──
+
+def test_metrics_after_kill_and_rebuild(c):
+    files = [put(c, f"m{i}") for i in range(4)]
+    m0 = c.get("/v1/metrics").json()
+    assert m0["readable_now_pct"] == 100.0 and m0["overhead"]["cluster"] == 3.0
+    assert m0["overhead"]["by_policy"] == {"rep3": 3.0} and m0["ifl"]["histogram"] == {"3": 4}
+    assert m0["last_incident"] is None and m0["availability_60s"] == 1.0
+    kill(c, files[0][1][0])
+    assert c.get("/v1/cluster").json()["summary"]["level"] == "degraded"
+    drain(c)
+    c.app_.state.brain.invalidate_snapshot()
+    assert c.get("/v1/cluster").json()["summary"]["level"] == "ok"
+    m = c.get("/v1/metrics").json()
+    li = m["last_incident"]
+    assert li["mttr_s"] == pytest.approx(li["detect_s"] + li["grace_s"] + li["repair_s"], abs=0.2)
+    assert li["bytes"] > 0 and m["incidents_avg_mttr_s"] == li["mttr_s"] and m["repair"]["bytes_total"] > 0
+    incs = c.get("/v1/incidents").json()["incidents"]
+    assert incs[0]["kind"] == "node_dead" and incs[0]["recovered_at"]
+
+
+def test_availability_and_corrupt_counter(c):
+    c.post("/v1/participants/gw/report", json={"reach": {}, "stats": {"window_s": 1, "ok": 9, "failed": 1}})
+    assert c.get("/v1/metrics").json()["availability_60s"] == 0.9
+    cid, holders = put(c, "z")
+    c.post("/v1/reports/fragment", json={"fid": f"{cid}_f0", "node_id": holders[0], "problem": "corrupt",
+                                         "observed_by": "n1", "context": "scrub"})
+    assert c.get("/v1/metrics").json()["scrub"]["corrupt_found_total"] == 1

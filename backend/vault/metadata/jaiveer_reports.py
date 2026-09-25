@@ -46,6 +46,8 @@ async def participant_report(request: Request, pid: str, body: ParticipantReport
     brain.membership.participant_report(pid, body.reach, now)
     if body.stats is not None:
         brain.gw_stats = (body.stats, now)
+        from vault.brain.jaiveer_metrics import record_gateway_stats
+        record_gateway_stats(brain, body.stats)
         await _aggregate_failover(brain, body.stats)
     return Response(status_code=204)
 
@@ -93,6 +95,11 @@ async def fragment_report(request: Request, body: FragmentReport) -> Response:
         await enqueue_job_tx(c, JobKind.repair, reason, chunk_id=chunk_id, frag_idx=frag_idx, priority=prio,
                              incident_id=inc)
     await brain.db.write(fn)
+    if body.problem == "corrupt":
+        async def count(c):
+            from vault.metadata.jaiveer_db import kv_incr
+            await kv_incr(c, "corrupt_found_total")
+        await brain.db.write(count)
     ev = "fragment.corrupt" if body.problem == "corrupt" else "fragment.missing"
     await brain.emit(ev, {"node": body.node_id, "key": info["key"]},
                      {"fid": body.fid, "observed_by": body.observed_by},
