@@ -233,3 +233,31 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
     - Please confirm you're OK with relays answering **502** for a failed forward (see S5 note). rpc.py returns any non-599 response to the caller as-is, which is what stops the relay loop.
   - **Jaiveer:** handoff `handoffs/soum_to_jaiveer_slow_flag_at_startup.md`. `node.slow` fires for all 6 machines at every boot, from the ping-loss rule while peers are still starting. That would show 6 false "answering slowly" lines after the power-cut scene.
   - **Jaiveer:** heartbeats through a relay arrive with `X-Vault-Via` / `X-Vault-Origin`, as rpc.forward sets them. Verified: your snapshot shows `relay:n1`.
+
+## [Hour 8] S7 Gateway routing + stats
+- What was done:
+  - **Holder order for reads** (`gateway/soum_routing.py`): available first (node state ALIVE / SUSPECT / PARTITIONED; unknown counts as available), then `direct` before `relay:*`, then not `slow`, then lowest RTT.
+    - Node states and RTT come from the gateway's own pinger, which also fetches `/v1/cluster` every second.
+    - A holder metadata already calls DOWN/DEAD goes last, so a read doesn't wait ~2 s for a crashed machine's refused connection on Windows.
+    - Hedged reads (P1) not built.
+  - **Gateway pinger** (reuses the node `Pinger`): reach row to meta + every node every 1 s, RTTs, node states, and `rpc.update_topology(...)` so the gateway's relay choice uses the matrix.
+  - **Stats report** (`gateway/soum_stats.py`): every 1 s, `POST /v1/participants/gw/report` with `ParticipantReport{reach, stats}`.
+    - `stats` is the **window since the last report** (`window_s` ≈ 1, then counters reset), matching Jaiveer's `rate = count / window_s`.
+    - `by_op` covers put/get/delete; 404 and 412 count as ok (PRD §8); `failover_reads` is per node that failed to serve.
+    - A lost report drops that window (no retry).
+- Files created/changed: `gateway/soum_routing.py`, `gateway/soum_stats.py`, `gateway/soum_meta_client.py` (`Gateway.pinger`, `Gateway.order()`), `gateway/soum_get.py` (uses `gw.order`), `gateway/soum_app.py` (starts pinger + report loop), `node/soum_pinger.py` (+ `states`, `rtt_ms()`), `tests/test_soum_gateway_routing.py` (new, 5 tests)
+- Endpoints / functions / components exposed:
+  - Gateway → meta: `POST /v1/participants/gw/report` `ParticipantReport` every 1 s; `GET /v1/cluster` every 1 s.
+  - `order_holders(frags, rtt_ms=None, states=None) -> list[FragLoc]`
+  - `Stats.take_window() -> GatewayStats`
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_gateway_routing.py` (5 tests). Full suite: 222 passed.
+  - Live (`python -m vault up`, 12 files):
+    - While reading, `/v1/cluster` `traffic` = `{"puts_per_s":0.0,"gets_per_s":3.0}`.
+    - Cut `gw↔n4`: `links` shows `gw→n4` blocked with `relay: n1`, and reads of files whose first copy is on n4 come back with `X-Vault-Read-Path: relay:n1` (3 of 12), all byte-identical.
+    - Kill n1: once it's DOWN, all 12 reads are `direct` from other holders (no failover, no 2 s waits).
+- Known issues / TODO:
+  - The `n4→gw` direction always shows ok in `links`, because nodes don't ping the gateway (§4.7: nodes ping nodes + meta). This is by design; the gw→n4 direction is what matters for reads.
+- Anything other teammates must know or do:
+  - **Jaiveer (J8 metrics):** gateway stats arrive every ~1 s as per-window counts; availability over 60 s = sum of ok ÷ sum of (ok + failed) over the last ~60 reports. `failover_reads` is per window too, so for `read.failover` aggregate it over a few windows (J7).
+  - **Anushka:** the dashboard's `traffic` strip is live now.

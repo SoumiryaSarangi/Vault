@@ -12,10 +12,13 @@ import time
 from typing import Any, Optional
 
 from vault.common.config import SafetyCfg, VaultConfig
+from vault.common.models import FragLoc
 from vault.common.rpc import NetworkError, get_rpc
 from vault.common.service import VaultHTTPError
+from vault.gateway.soum_routing import order_holders
 from vault.gateway.soum_stats import Stats
 from vault.node.soum_heartbeat import parse_config
+from vault.node.soum_pinger import Pinger
 
 log = logging.getLogger("gateway")
 
@@ -30,6 +33,10 @@ class Gateway:
         self.config_version = -1
         self.app_state = None
         self.stats = Stats()
+        self.pinger = Pinger(pid, cfg)       # reach row for the report + RTT/state for holder order (S7)
+
+    def order(self, frags: list[FragLoc]) -> list[FragLoc]:
+        return order_holders(frags, self.pinger.rtt_ms(), self.pinger.states)
 
 
 async def meta(method: str, path: str, *, json: Any = None, params: Optional[dict[str, Any]] = None,
