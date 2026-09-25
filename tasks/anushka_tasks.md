@@ -29,12 +29,13 @@ You own the shared contracts and infra, the supervisor and chaos controller, the
 ### A4. Brand components · ✅ done
 - `VaultMark.tsx` (liquid metal, pauses offscreen / reduced motion), `VaultMarkLazy.tsx` (use this: `next/dynamic`, static fallback while loading), `VaultMarkStatic.tsx`, `Wordmark.tsx`. Rendered in Chromium with 0 console errors.
 
-### A5. Console shell + Overview on fixtures · H4 → H7 · note D1: effective-copies tone compares each file with its own policy target
-- `ConsoleShell`, `TopBar`/`HealthSentence`/`ModeBanner`, `NodeList`/`NodeCard`/`PhiSparkline`/`DiskBar`/`LabelGlyphs`, `EventTimeline`/`EventItem` (Explain toggle), `KpiStrip`/`KpiTile`/`MttrBar`, `ChaosDock` UI (DESIGN §5.3, §5.8, §9, §10). Load `web/fixtures/*.json` into the store while the backend is off.
-- **Done when:** Overview fits 1280×720 with no scroll and every state from the fixture reads right.
+### A5. Console shell + Overview · ✅ done
+- Top bar (health sentence, tabs, Sample data / Comparison mode badges), machine cards (φ sparkline, disk bar, label glyphs, relay/slow/fenced), 2D cluster view (hash ring, power-strip islands, cut cables, relay route, repair flows), timeline with Explain and in-place repair progress, 5 KPI tiles, chaos dock (all DESIGN §5.8 actions, wired to the supervisor), floating active-fault chips, toasts, E / P shortcuts.
+- Fits 1280×720 with no page or list scroll (measured). Falls back to web/fixtures after 2 s when the stream isn't up.
 
-### A6. Live wiring · H7 → H9 · **M3**
-- `connectStream()` in `ConsoleShell`; pollers (DESIGN §8.1); chaos dock → supervisor with toasts; `ActiveFaults` chips; `ClusterScene2D` (SVG) as the first cluster view; `ConnectionBanner`; backend-off state.
+### A6. Live wiring · H7 → H9 · **M3** · mostly done early in A5
+- Done: SSE → store, pollers (procs, chaos, metrics, fate, runs) with back-off, chaos dock → supervisor, 2D cluster view, sample-data fallback.
+- Left: verify against Jaiveer's real `/v1/stream` + `/v1/metrics` when J6 lands; `ConnectionBanner` ("Reconnecting to Vault…") when a live stream drops; boot/power-cut overlays are A10.
 
 ### A7. Files page · H9 → H10.5
 - Buckets, dropzone with progress rows (`PUT` to gateway), `FileTable`/`ProtectionBadge`/`IflChip`/`PieceMatrix`, `InspectDrawer` + `FragmentGrid` + min-cut chips (DESIGN §5.4).

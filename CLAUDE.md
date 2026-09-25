@@ -32,10 +32,3 @@ Do not add "Generated with Claude Code" or similar lines to pull request descrip
 Write commit messages and PR descriptions as if authored solely by me.
 
 Commands: `python -m vault up` · `python -m vault status` · `python -m pytest -q` · `cd web && npm run dev`
-
-## Git commits
-
-Do not add "Co-Authored-By: Claude" or any Claude/Anthropic attribution lines to commit messages.
-Do not add "Generated with Claude Code" or similar lines to pull request descriptions.
-Write commit messages and PR descriptions as if authored solely by me.
-add this into CLAUDE.md

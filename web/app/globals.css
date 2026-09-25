@@ -86,6 +86,54 @@ body {
   border-radius: 16px;
 }
 
+/* Motion (DESIGN §3.5). Only transform and opacity animate. */
+@keyframes enter {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* Suspect pulse: period set per node from φ via --pulse (1.6 s → 0.4 s as suspicion grows) */
+@keyframes suspect-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.suspect-pulse {
+  animation: suspect-pulse var(--pulse, 1.6s) var(--ease-in-out) infinite;
+}
+.down-blink {
+  animation: suspect-pulse 1s steps(2, jump-none) infinite;
+}
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.dash-flow {
+  animation: dash-flow 0.8s linear infinite;
+}
+
+/* Presenter mode (DESIGN §5.10): bigger root text, brighter secondary text, bigger KPI values */
+.presenter {
+  font-size: 18px;
+  --color-fg-1: #c9cfdc;
+}
+.presenter .kpi-value {
+  font-size: 40px;
+  line-height: 44px;
+}
+@media (min-width: 1600px) {
+  .kpi-value {
+    font-size: 40px;
+    line-height: 44px;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
