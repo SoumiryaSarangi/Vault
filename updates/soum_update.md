@@ -64,3 +64,17 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
   - Full suite: 96 passed.
 - Known issues / TODO: S3 wires this into `node/soum_app.py` (fragment endpoints, fencing, epochs).
 - Anything other teammates must know or do: **Jaiveer (reconciler seam, S8)**: `Inventory.fragments[].sha256` is the fragment header's expected hash, not a fresh re-hash of the bytes; re-hashing the whole disk every 30 s would be too slow. A damaged file is caught by read or scrub, quarantined, and so drops out of the next inventory, which surfaces as "row ok, file absent" → `missing` → repair.
+
+## [Hour 3] Answers to my open questions (recorded, no code change)
+- What was done: recorded Anushka's and Jaiveer's answers; they apply from S3/S4 on.
+  1. **Fencing (Anushka):** `fenced = safety.fencing and (lease_expiry is None or time.time() > lease_expiry)`.
+     - A node that has never had a lease refuses PUT/DELETE (`503 fenced`) until its first register or heartbeat reply. It still serves verified reads.
+     - An unexpired lease saved in `node.json` is honoured after a quick restart.
+     - Naive mode skips the check.
+  2. **`GET /v1/config` (Jaiveer):** flat `VaultConfig` JSON plus top-level `config_version` and `mode`. Pop both, then `VaultConfig.model_validate(body)`. Re-fetch only when a heartbeat reply's `config_version` is newer than the one held.
+  3. **Topology (Jaiveer):** nodes poll `GET /v1/cluster` every 1 s (relay allowed) and feed `update_topology()`. On any error, including 404 until J6 (~H8), they keep the last topology.
+- Files created/changed: `updates/soum_update.md`
+- Endpoints / functions / components exposed: none.
+- How to run / test it: n/a.
+- Known issues / TODO: none.
+- Anything other teammates must know or do: **Gateway behaviour**: a PUT to a node that has just restarted can get `503 fenced` for under a second; the gateway treats that as a failed fragment and uses a spare.
