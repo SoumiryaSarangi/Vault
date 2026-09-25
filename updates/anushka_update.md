@@ -72,3 +72,8 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 ## [Hour 6] Merge point: Jaiveer J6 + live dashboard check
 - What was done: merged J6 (detector, /v1/cluster, SSE, φ underflow fix). Checked live: metadata + Jaiveer's fake nodes → the dashboard switched from sample to live data by itself; silencing n3 showed "slow to answer. Checking…" → "stopped responding" → DEAD with VAULT_DEMO=1. With real nodes there are no false cut links and no slow flags (with fake nodes both appear only because fake nodes don't answer pings). Fixed KPIs on an empty cluster (were a red 0 and 0.0×; now "—").
 - Known issues / TODO: until Soum's S4 heartbeats land, every real node goes DEAD after the 10 s startup grace and the summary reads "Your data is safe. 0 of 6 machines are healthy." (Jaiveer, low priority; S4 fixes it in practice).
+
+## [Hour 7] A8 Fate page + A10 overlays and settings
+- What was done: Fate page (label matrix → PATCH /v1/nodes/{id}/labels, power-strip cards, cut-a-strip buttons, IFL histogram / at-risk / advice from /v1/fate when J9 lands, cluster-wide risk). Power-cut overlay (with "Turn the power back on") and boot overlay ("N of N files present. X lost." from counts before vs after). Settings drawer: Vault/Naive mode with confirm, Explain, presenter, Reset demo with confirm.
+- Files: web/app/console/fate/page.tsx; web/components/console/{Overlays,SettingsDrawer}.tsx; TopBar (gear), ConsoleShell (overlays).
+- Known issues / TODO: the boot overlay's final line waits for all machines to be ALIVE, so it can't complete until Soum's S4 heartbeats; it times out after 45 s so it never blocks the stage. Repair-speed and grace sliders (P1) are not built.
