@@ -1,5 +1,7 @@
 // Vault API contract v1: TypeScript mirror of backend/vault/common/models.py.
 // FROZEN. Owner: Anushka. Same field names, snake_case kept as-is. Change both files together (gated).
+// Mirrors the BROWSER-FACING subset only: what the dashboard reads or sends. Node, gateway and metadata
+// internals (fragments, uploads, heartbeats, pulls, inventory, ledger) live only in models.py.
 
 // ── Enums ──
 export type NodeState =
@@ -52,6 +54,13 @@ export interface Incident {
   repair_started_at?: number | null; recovered_at?: number | null; affected_chunks: number; remaining_chunks: number; bytes_repaired: number;
 }
 export interface IncidentList { incidents: Incident[] }
+export interface InspectObject {
+  bucket: string; key: string; state: "live" | "deleted"; seq: number; commit_seq: number; sha256?: string | null;
+  size: number; durable_min: number; target: number; ifl: number;
+}
+export interface InspectPage { objects: InspectObject[]; next_cursor: string | null }
+export interface ModeRequest { mode: Mode }
+export interface LabelsPatch { labels: Record<string, string>; display_name?: string | null }
 
 // ── 7.3 Node chaos state ──
 export interface ChaosState {
@@ -75,7 +84,14 @@ export interface ChaosStep {
   action: "kill" | "start" | "restart_down" | "corrupt" | "link" | "slow" | "freeze" | "power_cut" | "power_restore" | "clear";
   params: Record<string, unknown>;
 }
+export interface ResetRequest { seed: boolean; mode: Mode }
 export interface ResetResult { ok: boolean; elapsed_s: number }
+export interface SeedRequest { bucket: string; count: number }
+export interface ScriptRequest { name: "standard" | "heavy"; seed: number }
+export interface ScriptStarted { script_id: string }
+export interface RunCreated { run_id: string }
+export interface CorruptRequest { count?: number | null; fids?: string[] | null; mode: "bitflip" | "zero" | "truncate" | "delete" }
+export interface PowerRestoreRequest { scope: "all" | "label"; label?: string | null }
 export interface SeedResult { uploaded: number }
 
 // ── 7.5 Oracle ──
