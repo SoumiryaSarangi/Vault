@@ -21,7 +21,7 @@ from vault.common.config import VaultConfig
 from vault.common.models import (Bucket, BucketCreate, BucketInfo, CreateBucketRequest, DeleteResult, Manifest,
                                  ObjectList, PutResult)
 from vault.common.service import VaultHTTPError, make_app
-from vault.gateway import soum_get, soum_put
+from vault.gateway import soum_get, soum_put, soum_stats
 from vault.gateway.soum_meta_client import Gateway, meta, poll_config
 
 log = logging.getLogger("gateway")
@@ -36,12 +36,15 @@ def object_headers(m: Manifest, read_path: Optional[str] = None) -> dict[str, st
 
 
 def create_app(cfg: VaultConfig, pid: str = "gw", start_loops: bool = True) -> FastAPI:
-    """start_loops=False: routes only (unit tests); no config polling."""
+    """start_loops=False: routes only (unit tests); no config polling, pinger or stats report."""
     gw = Gateway(cfg, pid)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        tasks = [asyncio.create_task(poll_config(gw))] if start_loops else []
+        tasks = [asyncio.create_task(poll_config(gw)),         # safety switches (§4.15)
+                 asyncio.create_task(gw.pinger.run()),         # reach row, RTT, node states, rpc topology
+                 asyncio.create_task(soum_stats.run(gw))       # POST /v1/participants/gw/report every 1 s
+                 ] if start_loops else []
         try:
             yield
         finally:

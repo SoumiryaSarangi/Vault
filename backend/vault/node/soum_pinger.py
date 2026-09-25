@@ -29,7 +29,12 @@ class Pinger:
         self.on_row = on_row
         self.row: dict[str, Reach] = {}
         self.node_ids: list[str] = list(cfg.node_ids())   # replaced by the snapshot's list (adds n7+)
+        self.states: dict[str, str] = {}                   # node id → state from the last snapshot
         self.have_topology = False
+
+    def rtt_ms(self) -> dict[str, float]:
+        """Latest RTT per reachable target (for the gateway's holder order)."""
+        return {t: r.rtt_ms for t, r in self.row.items() if r.ok and r.rtt_ms is not None}
 
     def targets(self) -> list[str]:
         return ["meta"] + [n for n in self.node_ids if n != self.pid]
@@ -59,6 +64,7 @@ class Pinger:
         get_rpc().update_topology(nodes, links)
         if nodes:
             self.node_ids = [n for n, _ in nodes]
+            self.states = dict(nodes)
         if not self.have_topology:
             log.info("topology from metadata snapshot: %d nodes, %d abnormal links", len(nodes), len(links))
             self.have_topology = True

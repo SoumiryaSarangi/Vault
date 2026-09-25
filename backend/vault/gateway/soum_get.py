@@ -20,7 +20,6 @@ from vault.common.models import FragLoc, FragmentReport, Manifest, ManifestChunk
 from vault.common.rpc import NetworkError, get_rpc
 from vault.common.soum_ec import ec_decode
 from vault.gateway.soum_meta_client import Gateway, meta
-from vault.gateway.soum_routing import order_holders
 
 log = logging.getLogger("gateway.get")
 
@@ -65,7 +64,7 @@ async def fetch(gw: Gateway, chunk_id: str, loc: FragLoc, expected_sha: str) -> 
 
 
 async def read_replicated(gw: Gateway, ch: ManifestChunk) -> tuple[bytes, str]:
-    holders = order_holders(ch.fragments)
+    holders = gw.order(ch.fragments)
     if not gw.safety.read_failover:
         holders = holders[:1]
     failed: list[str] = []
@@ -84,7 +83,7 @@ async def read_replicated(gw: Gateway, ch: ManifestChunk) -> tuple[bytes, str]:
 async def read_erasure(gw: Gateway, m: Manifest, ch: ManifestChunk) -> tuple[bytes, str]:
     k = m.policy.k or 1
     by_idx: dict[int, list[FragLoc]] = {}
-    for loc in order_holders(ch.fragments):
+    for loc in gw.order(ch.fragments):
         by_idx.setdefault(loc.frag_idx, []).append(loc)
 
     async def one(idx: int) -> tuple[int, Optional[bytes], str]:
