@@ -12,7 +12,9 @@ export class ApiError extends Error {
 }
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  // Content-Type only with a body: a plain GET then needs no CORS preflight (we poll every second).
+  const headers = init?.body ? { "Content-Type": "application/json", ...init?.headers } : init?.headers;
+  const r = await fetch(url, { ...init, headers });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     throw new ApiError(r.status, body.error ?? "http_error", body.message ?? r.statusText);

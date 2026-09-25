@@ -62,6 +62,9 @@ export interface ChaosState {
 export interface Proc { pid: string; port: number; state: "running" | "stopped"; os_pid?: number | null; uptime_s: number; display_name: string }
 export interface ProcList { procs: Proc[] }
 export interface PowerCutRequest { scope: "all" | "label"; label?: string | null; restore_after_s?: number | null }
+export interface PowerCutResult { killed: string[] }
+export interface PowerRestoreResult { started: string[] }
+export interface CorruptResult { corrupted: string[] }
 export interface LinkRequest { a: string; b: string; cut: boolean; direction: "both" | "a_to_b" }
 export interface NodeChaosRequest { action: "slow" | "freeze" | "corrupt" | "disk_full" | "clear"; params: Record<string, unknown> }
 export interface Fault { id: string; kind: string; subject: string; since: number; params: Record<string, unknown> }

@@ -26,6 +26,7 @@ from vault.common.netsim import NetSim, init_netsim, install_netsim
 from vault.common.rpc import init_rpc
 
 EXPOSE_HEADERS = ["ETag", "X-Vault-Seq", "X-Vault-Commit-Seq", "X-Vault-Read-Path"]
+LOCAL_ORIGINS = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
 
 Lifespan = Callable[[FastAPI], "AsyncIterator[None]"]
 
@@ -64,8 +65,9 @@ def make_app(cfg: VaultConfig, pid: str, lifespan: Optional[Lifespan] = None, ti
     app.state.cfg, app.state.pid, app.state.netsim = cfg, pid, ns
     app.state.config_version = 0
     install_netsim(app, ns, enabled=cfg.chaos.enabled)
-    app.add_middleware(CORSMiddleware, allow_origins=[cfg.web.origin], allow_methods=["*"],
-                       allow_headers=["*"], expose_headers=EXPOSE_HEADERS)
+    # The dashboard (web.origin, plus localhost/127.0.0.1 on any port for a second dev server) may call us.
+    app.add_middleware(CORSMiddleware, allow_origins=[cfg.web.origin], allow_origin_regex=LOCAL_ORIGINS,
+                       allow_methods=["*"], allow_headers=["*"], expose_headers=EXPOSE_HEADERS)
 
     @app.exception_handler(VaultHTTPError)
     async def _vault_error(_: Request, exc: VaultHTTPError):
