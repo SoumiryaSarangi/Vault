@@ -4,6 +4,7 @@ import Wordmark from "@/components/brand/Wordmark";
 import { LEVEL_COLOR } from "@/lib/states";
 import { useVault } from "@/lib/store";
 import Link from "next/link";
+import SettingsDrawer from "./SettingsDrawer";
 import { usePathname } from "next/navigation";
 
 const TABS = [
@@ -81,6 +82,7 @@ export default function TopBar() {
           );
         })}
       </nav>
+      <SettingsDrawer />
     </header>
   );
 }
