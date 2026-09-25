@@ -25,12 +25,12 @@ You own the thing that makes judges believe us: the **Durability Oracle**, an in
 - **Files:** `supervisor/urooz_seed.py`
 - **Spec:** ARCHITECTURE §6 "Seed": ~200 synthetic clinic files (`xray-0042.png`, `lab-report-0113.pdf`, …), 20 KB–3 MB of seeded random bytes, uploaded through the gateway with `get_rpc().request("gw", "PUT", f"/{bucket}/{key}", content=..., timeout=...)`, a few in parallel. **No real patient data.**
 - **Signature (fixed):** `async def seed(rpc, bucket: str = "clinic", count: int = 200, seed: int = 42) -> int` (returns files uploaded).
-- **Done when:** after Soum's gateway lands (~H7): 200 files uploaded in < 60 s.
+- **Done when:** after Soum's gateway lands (~H7): 200 files uploaded quickly. `python -m vault reset` (which calls your seed) has a **≤ 20 s** target (PRD F16) and the rest of reset takes ~4 s, so keep the total bytes modest (e.g. mostly 20–500 KB files with a few 1–3 MB ones) and upload ~8 in parallel. `POST :7070/demo/seed` calls your function.
 
 ### U3. Workload + chaos scripts · H5 → H7
 - **Files:** `oracle/urooz_workload.py`, `supervisor/urooz_scripts.py`, `tests/urooz/urooz_fake_gateway.py`
 - **Workload** (§5): `clients` (8) async loops, seeded RNG, 200 keys in bucket `oracle`; 50% PUT (1 KB–2 MB random), 40% GET, 10% DELETE; record every op with invoke/complete times and outcome (`ok`/`fail`/`unknown` rules in §5); read `X-Vault-Commit-Seq`/`X-Vault-Seq` headers.
-- **Scripts:** `steps(name, seed, nodes) -> list[ChaosStep]` for `standard` (the 9 timed steps in §5) and `heavy` (3 cycles, 80 corruptions per burst, restart crashed machines at the end of each cycle); `fault_units(steps) -> int` (standard ≈ 47, heavy ≈ 500). Agree the `ChaosStep` shape with Anushka (she executes it; suggest a pydantic model with `t`, `action`, `params`). **Gated**: a new shared shape, so get her OK first.
+- **Scripts:** `steps(name, seed, nodes) -> list[ChaosStep]` for `standard` (the 9 timed steps in §5) and `heavy` (3 cycles, 80 corruptions per burst, `restart_down` at the end of each cycle); `fault_units(steps) -> int` (standard ≈ 47, heavy ≈ 500). **`ChaosStep` is already defined** in `common/models.py` (actions + params in its docstring). The runner is live: `POST :7070/chaos/script {"name":"standard","seed":42}` returns 501 until your `steps` exists, then runs it. Stop with `POST /chaos/script/{id}/stop`.
 - **Fake gateway until Soum's lands:** an in-memory FastAPI with PUT/GET/DELETE and commit_seq headers, so you can develop the workload now.
 
 ### U4. Landing page · H7 → H9 (or any time you're blocked)

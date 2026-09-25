@@ -67,6 +67,11 @@ export interface NodeChaosRequest { action: "slow" | "freeze" | "corrupt" | "dis
 export interface Fault { id: string; kind: string; subject: string; since: number; params: Record<string, unknown> }
 export interface FaultList { faults: Fault[] }
 export interface AddNodeRequest { display_name: string; labels: Record<string, string> }
+export interface ChaosStep {
+  t: number;
+  action: "kill" | "start" | "restart_down" | "corrupt" | "link" | "slow" | "freeze" | "power_cut" | "power_restore" | "clear";
+  params: Record<string, unknown>;
+}
 export interface ResetResult { ok: boolean; elapsed_s: number }
 export interface SeedResult { uploaded: number }
 

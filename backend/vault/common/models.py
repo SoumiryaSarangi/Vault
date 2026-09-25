@@ -686,6 +686,28 @@ class ScriptStarted(_M):
     script_id: str
 
 
+class ChaosStep(_M):
+    """One timed step of a seeded chaos script. Urooz's urooz_scripts.steps() returns these;
+    Anushka's runner executes them. t = seconds from script start.
+
+    action        params
+    kill          {"pid": "n2"}
+    start         {"pid": "n2"}
+    restart_down  {}                                   start every stopped node (end of a heavy cycle)
+    corrupt       {"count": 20, "mode": "bitflip"}     random copies across running nodes
+    link          {"a": "gw", "b": "n4", "cut": true, "direction": "both"}
+    slow          {"pid": "n5", "ms": 800}
+    freeze        {"pid": "n5", "seconds": 10}
+    power_cut     {"scope": "label", "label": "power=B", "restore_after_s": 6}
+    power_restore {"scope": "all"}
+    clear         {}                                   clear links and slowness (doesn't start nodes)
+    """
+    t: float
+    action: Literal["kill", "start", "restart_down", "corrupt", "link", "slow", "freeze",
+                    "power_cut", "power_restore", "clear"]
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class AddNodeRequest(_M):
     display_name: str
     labels: dict[str, str] = Field(default_factory=dict)

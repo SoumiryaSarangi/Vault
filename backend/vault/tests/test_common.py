@@ -89,3 +89,21 @@ def test_netsim_blocks_and_chaos_routes():
         c.post("/_chaos/clear")
         assert c.get("/v1/ping", headers={"X-Vault-From": "n2"}).status_code == 200
         assert c.get("/_vault/health").json()["pid"] == "n1"
+
+
+def test_node_identity_from_yaml_and_env(monkeypatch):
+    from vault.common.config import node_identity
+    cfg = load_config("vault.yaml")
+    assert node_identity(cfg, "n3") == ("Lab Laptop", {"power": "B", "switch": "S2", "disk_batch": "D3", "version": "1.0"})
+    monkeypatch.setenv("VAULT_NODE_DISPLAY_NAME", "Storeroom PC")
+    monkeypatch.setenv("VAULT_NODE_LABELS", '{"power": "D"}')
+    assert node_identity(cfg, "n7") == ("Storeroom PC", {"power": "D"})
+
+
+def test_chaos_step_contract():
+    from vault.common.models import ChaosStep
+    s = ChaosStep.model_validate({"t": 25, "action": "power_cut",
+                                  "params": {"scope": "label", "label": "power=B", "restore_after_s": 6}})
+    assert s.action == "power_cut" and s.params["label"] == "power=B"
+    with pytest.raises(ValueError):
+        ChaosStep.model_validate({"t": 1, "action": "explode"})

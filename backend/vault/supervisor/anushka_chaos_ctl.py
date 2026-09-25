@@ -1,4 +1,4 @@
-"""Chaos controller (ARCHITECTURE §6, §7.4). Owner: Anushka. Tasks A2 (done here) and A3.
+"""Chaos controller (ARCHITECTURE §6, §7.4). Owner: Anushka. Tasks A2 and A3 (power, scripts).
 
 Every chaos action:
   1. is applied (process control, or /_chaos/* on the affected participants, never via a relay),
@@ -10,12 +10,17 @@ Every chaos action:
 FaultReport.kind values (Jaiveer matches incidents on kind + subject):
   node_dead (kill, freeze) · partition (link cut, subject "a|b") · corruption · slow · disk_full · power_cut
 """
+import asyncio
 import logging
+import secrets
 import time
 from typing import Any, Optional
 
 from vault.common.config import CONTROL_DISPLAY_NAMES, VaultConfig
-from vault.common.models import ExternalEvent, Fault, FaultReport, LinkRequest, NodeChaosRequest
+from vault.common.events import domain_name
+from vault.common.models import (ChaosStep, ExternalEvent, Fault, FaultReport, LinkRequest, NodeChaosRequest,
+                                 PowerCutRequest, PowerCutResult, PowerRestoreRequest, PowerRestoreResult, Proc,
+                                 ScriptRequest)
 from vault.common.rpc import NetworkError, get_rpc
 from vault.common.service import VaultHTTPError
 
@@ -25,9 +30,13 @@ log = logging.getLogger("sup.chaos")
 class ChaosController:
     def __init__(self, cfg: VaultConfig, procs):
         self.cfg = cfg
-        self.procs = procs                      # anushka_procs.Procs
+        self.procs = procs                           # anushka_procs.Procs
         self.faults: dict[str, Fault] = {}
-        self._expires: dict[str, float] = {}    # fault id → time it ends by itself (freeze)
+        self._expires: dict[str, float] = {}         # fault id → time it ends by itself (freeze)
+        self._power: dict[str, list[str]] = {}       # power fault id → pids it turned off
+        self._timers: dict[str, asyncio.Task] = {}   # power fault id → auto-restore task
+        self._pending: list[dict[str, Any]] = []     # reports held while metadata is off (power cut all)
+        self._scripts: dict[str, asyncio.Task] = {}
 
     # ── names ──
     def name(self, pid: str) -> str:
@@ -53,6 +62,18 @@ class ChaosController:
             raise VaultHTTPError(r.status_code, "chaos_failed", f"{self.name(pid)} refused: {r.text[:200]}")
         return r.json()
 
+    async def wait_healthy(self, pid: str, timeout: float = 15.0) -> bool:
+        end = time.time() + timeout
+        while time.time() < end:
+            try:
+                r = await get_rpc().request(pid, "GET", "/_vault/health", allow_relay=False)
+                if r.status_code == 200:
+                    return True
+            except NetworkError:
+                pass
+            await asyncio.sleep(0.2)
+        return False
+
     # ── ground truth + timeline (best effort) ──
     async def report(self, kind: str, subject: str, event_type: str, human: str, technical: str,
                      subject_obj: dict[str, Any], data: Optional[dict[str, Any]] = None, at: Optional[float] = None) -> None:
@@ -65,7 +86,7 @@ class ChaosController:
             try:
                 r = await rpc.request("meta", "POST", path, json=body.model_dump(mode="json"), allow_relay=False)
                 if r.status_code >= 400:
-                    log.warning("metadata %s → %s (not built yet?)", path, r.status_code)
+                    log.warning("metadata %s -> %s (not built yet?)", path, r.status_code)
             except NetworkError as e:
                 log.warning("metadata unreachable for %s: %s", path, e.reason)
         log.info("chaos %s: %s", event_type, human)
@@ -88,15 +109,23 @@ class ChaosController:
             self._remove(fid)
         return sorted(self.faults.values(), key=lambda f: f.since)
 
-    # ── process actions (called by the /procs routes) ──
-    async def on_kill(self, pid: str) -> None:
-        await self.report("node_dead", pid, "chaos.kill", f"You turned off {self.name(pid)}.", f"kill {pid}",
-                          {"node": pid})
+    # ── process actions (the /procs routes and chaos scripts) ──
+    async def kill_proc(self, pid: str) -> Proc:
+        was_running = self.procs.children[pid].running
+        view = await self.procs.kill(pid)
+        if was_running:
+            await self.report("node_dead", pid, "chaos.kill", f"You turned off {self.name(pid)}.", f"kill {pid}",
+                              {"node": pid})
+        return view
 
-    async def on_start(self, pid: str) -> None:
-        self._remove(f"freeze:{pid}")
-        await self.report("node_start", pid, "chaos.start", f"You turned {self.name(pid)} back on.", f"start {pid}",
-                          {"node": pid})
+    async def start_proc(self, pid: str) -> Proc:
+        was_running = self.procs.children[pid].running
+        view = await self.procs.start(pid)
+        if not was_running:
+            self._remove(f"freeze:{pid}")
+            await self.report("node_start", pid, "chaos.start", f"You turned {self.name(pid)} back on.",
+                              f"start {pid}", {"node": pid})
+        return view
 
     # ── A2: links ──
     async def link(self, req: LinkRequest) -> list[Fault]:
@@ -151,7 +180,7 @@ class ChaosController:
         elif act == "corrupt":
             if not pid.startswith("n"):
                 raise VaultHTTPError(400, "not_a_node", "Only storage machines hold copies to damage.")
-            body = {"mode": p.get("mode", "bitflip")}
+            body: dict[str, Any] = {"mode": p.get("mode", "bitflip")}
             if p.get("fids"):
                 body["fids"] = p["fids"]
             else:
@@ -179,7 +208,7 @@ class ChaosController:
 
     async def corrupt_random(self, count: int, mode: str = "bitflip") -> list[str]:
         """Damage `count` copies spread over the running nodes (DESIGN §5.8 "Damage copies"). Returns fids."""
-        nodes = [p for p, c in self.procs.children.items() if p.startswith("n") and c.running]
+        nodes = [p for p in self.procs.node_ids() if self.procs.children[p].running]
         if not nodes:
             raise VaultHTTPError(409, "no_machines", "No storage machines are on.")
         per, extra = divmod(count, len(nodes))
@@ -193,15 +222,170 @@ class ChaosController:
                           f"corrupt random n={len(fids)} mode={mode}", {}, {"fids": fids})
         return fids
 
+    # ── A3: power ──
+    async def _labels(self) -> dict[str, dict[str, str]]:
+        """node_id → labels. Live labels come from metadata (relabels happen there), else our own copy."""
+        try:
+            r = await get_rpc().request("meta", "GET", "/v1/cluster", allow_relay=False)
+            if r.status_code == 200:
+                return {n["id"]: n.get("labels", {}) for n in r.json().get("nodes", [])}
+        except (NetworkError, ValueError):
+            pass
+        return {p: self.procs.children[p].labels for p in self.procs.node_ids()}
+
+    async def _power_targets(self, scope: str, label: Optional[str], running: bool) -> tuple[str, str, list[str]]:
+        """→ (fault id, human name, pids in scope that are running (for a cut) or stopped (for a restore))."""
+        if scope == "all":
+            pids = ["meta", "gw", *self.procs.node_ids()]
+            fid, what = "power:all", "everything"
+        else:
+            if not label or "=" not in label:
+                raise VaultHTTPError(400, "bad_label", "Pick a power strip, like power=A.")
+            key, value = label.split("=", 1)
+            labels = await self._labels()
+            pids = [n for n in self.procs.node_ids() if labels.get(n, {}).get(key) == value]
+            fid, what = f"power:{label}", domain_name(key, value)
+        return fid, what, [p for p in pids if self.procs.children[p].running == running]
+
+    async def power_cut(self, req: PowerCutRequest) -> PowerCutResult:
+        at = time.time()
+        fid, what, targets = await self._power_targets(req.scope, req.label, running=True)
+        if not targets:
+            raise VaultHTTPError(409, "nothing_to_cut", f"Every machine on {what} is already off.")
+        killed = await self.procs.kill_many(targets)
+        self._power[fid] = killed
+        subject = "all" if req.scope == "all" else str(req.label)
+        self._add(fid, "power_cut", subject, {"killed": killed, "restore_after_s": req.restore_after_s})
+        human = "You cut the power to everything." if req.scope == "all" else f"You cut {what}."
+        args = dict(kind="power_cut", subject=subject, event_type="chaos.power_cut", human=human,
+                    technical=f"power cut {subject}: killed {','.join(killed)}", subject_obj={"power": subject},
+                    data={"killed": killed}, at=at)
+        if "meta" in killed:
+            # Restarted processes come back with fresh netsim state, so link/slow faults are gone too.
+            for f in [f for f in self.faults if not f.startswith("power:")]:
+                self._remove(f)
+            self._pending.append(args)          # metadata is off: report once it's back
+            log.info("chaos chaos.power_cut: %s", human)
+        else:
+            await self.report(**args)
+        if req.restore_after_s:
+            self._timers[fid] = asyncio.create_task(self._auto_restore(req, req.restore_after_s))
+        return PowerCutResult(killed=killed)
+
+    async def _auto_restore(self, req: PowerCutRequest, delay: float) -> None:
+        await asyncio.sleep(delay)
+        try:
+            await self.power_restore(PowerRestoreRequest(scope=req.scope, label=req.label))
+        except VaultHTTPError as e:
+            log.warning("auto-restore failed: %s", e.body.message)
+
+    async def power_restore(self, req: PowerRestoreRequest) -> PowerRestoreResult:
+        fid = "power:all" if req.scope == "all" else f"power:{req.label}"
+        timer = self._timers.pop(fid, None)
+        if timer is not None and timer is not asyncio.current_task():
+            timer.cancel()
+        pids = self._power.pop(fid, None)
+        if pids is None:   # not cut by us: turn on whatever in scope is off
+            _, _, pids = await self._power_targets(req.scope, req.label, running=False)
+        started = await self.procs.start_many(pids)
+        self._remove(fid)
+        if "meta" in started:
+            await self.wait_healthy("meta")
+        pending, self._pending = self._pending, []
+        for args in pending:
+            await self.report(**args)
+        what = "everything" if req.scope == "all" else domain_name(*str(req.label).split("=", 1))
+        await self.report("power_restore", "all" if req.scope == "all" else str(req.label), "chaos.power_restore",
+                          f"You turned the power back on for {what}.", f"power restore: started {','.join(started)}",
+                          {"power": req.label or "all"}, {"started": started})
+        return PowerRestoreResult(started=started)
+
+    # ── A3: seeded chaos scripts (the steps come from Urooz's urooz_scripts.steps) ──
+    async def run_script(self, req: ScriptRequest) -> str:
+        try:
+            from vault.supervisor.urooz_scripts import steps
+            plan = [ChaosStep.model_validate(x) if isinstance(x, dict) else x
+                    for x in steps(req.name, req.seed, self.procs.node_ids())]
+        except (ImportError, NotImplementedError) as e:
+            raise VaultHTTPError(501, "scripts_not_ready", "Chaos scripts aren't built yet (Urooz, task U3).",
+                                 {"reason": str(e)})
+        sid = f"s_{secrets.token_hex(4)}"
+        self._scripts[sid] = asyncio.create_task(self._run_steps(sid, req.name, sorted(plan, key=lambda x: x.t)))
+        log.info("script %s (%s, seed %s): %d steps", sid, req.name, req.seed, len(plan))
+        return sid
+
+    async def _run_steps(self, sid: str, name: str, plan: list[ChaosStep]) -> None:
+        t0 = time.time()
+        try:
+            for step in plan:
+                delay = t0 + step.t - time.time()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                try:
+                    await self.execute(step)
+                except VaultHTTPError as e:     # one failing step (e.g. target already off) never stops the script
+                    log.warning("script %s t=%.1f %s failed: %s", sid, step.t, step.action, e.body.message)
+        finally:
+            self._scripts.pop(sid, None)
+            log.info("script %s (%s) finished", sid, name)
+
+    async def execute(self, step: ChaosStep) -> None:
+        p, a = step.params, step.action
+        if a == "kill":
+            await self.kill_proc(p["pid"])
+        elif a == "start":
+            await self.start_proc(p["pid"])
+        elif a == "restart_down":
+            for pid in [n for n in self.procs.node_ids() if not self.procs.children[n].running]:
+                await self.start_proc(pid)
+        elif a == "corrupt":
+            await self.corrupt_random(int(p.get("count", 10)), p.get("mode", "bitflip"))
+        elif a == "link":
+            await self.link(LinkRequest(**p))
+        elif a in ("slow", "freeze"):
+            await self.node(p["pid"], NodeChaosRequest(action=a, params={k: v for k, v in p.items() if k != "pid"}))
+        elif a == "power_cut":
+            await self.power_cut(PowerCutRequest(**p))
+        elif a == "power_restore":
+            await self.power_restore(PowerRestoreRequest(**p))
+        elif a == "clear":
+            await self.clear_all(stop_scripts=False)
+
+    def stop_script(self, sid: str) -> bool:
+        task = self._scripts.get(sid)
+        if task is None:
+            return False
+        task.cancel()
+        return True
+
+    def stop_scripts(self) -> None:
+        for task in list(self._scripts.values()):
+            if task is not asyncio.current_task():
+                task.cancel()
+
+    def forget_all(self) -> None:
+        """Reset: stop scripts and timers and drop every fault record (all processes restart)."""
+        self.stop_scripts()
+        for t in self._timers.values():
+            t.cancel()
+        self._timers.clear()
+        self._power.clear()
+        self._pending.clear()
+        self.faults.clear()
+        self._expires.clear()
+
     # ── A2: clear everything ──
-    async def clear_all(self) -> list[Fault]:
+    async def clear_all(self, stop_scripts: bool = True) -> list[Fault]:
+        """Fix every cable and speed problem. Machines that are off stay off (DESIGN §5.8)."""
+        if stop_scripts:
+            self.stop_scripts()
         for pid, c in self.procs.children.items():
             if c.running and pid != "oracle":
                 try:
                     await self._chaos_call(pid, "clear")
                 except VaultHTTPError as e:
                     log.warning("clear %s failed: %s", pid, e.body.message)
-        self.faults.clear()
-        self._expires.clear()
+        for fid in [f for f in self.faults if not f.startswith("power:")]:
+            self._remove(fid)
         await self.report("clear", "cluster", "chaos.clear", "You fixed every cable and speed problem.", "clear_all", {})
         return self.active()

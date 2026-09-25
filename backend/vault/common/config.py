@@ -6,6 +6,7 @@ Usage:
     cfg.policy("rep3").n                 # 3
     cfg.addr("n3")                       # "127.0.0.1:7103"
 """
+import json
 import os
 from pathlib import Path
 from typing import Literal, Optional
@@ -214,6 +215,20 @@ class VaultConfig(_C):
 
 
 CONTROL_DISPLAY_NAMES = {"meta": "Vault index", "gw": "Vault gateway"}   # DESIGN §5.8
+
+# A machine added at runtime (n7, n8, …) isn't in vault.yaml. The supervisor passes its identity
+# to the node process through these env vars; nodes read it with node_identity().
+ENV_NODE_DISPLAY_NAME = "VAULT_NODE_DISPLAY_NAME"
+ENV_NODE_LABELS = "VAULT_NODE_LABELS"   # JSON object
+
+
+def node_identity(cfg: "VaultConfig", node_id: str) -> tuple[str, dict[str, str]]:
+    """(display_name, labels) for a node: from vault.yaml, else from the supervisor's env vars."""
+    n = cfg.nodes.get(node_id)
+    if n is not None:
+        return n.display_name, dict(n.labels)
+    labels = json.loads(os.environ.get(ENV_NODE_LABELS, "{}") or "{}")
+    return os.environ.get(ENV_NODE_DISPLAY_NAME, node_id), {str(k): str(v) for k, v in labels.items()}
 
 
 def load_config(path: Optional[str] = None) -> VaultConfig:
