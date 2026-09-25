@@ -22,7 +22,9 @@ from vault.common.models import (FragmentPutResult, FragmentReport, NodeHealth, 
 from vault.common.rpc import NetworkError, get_rpc
 from vault.common.service import VaultHTTPError, make_app
 from vault.node import soum_pull, soum_scrubber
+from vault.node.soum_chaos import chaos_router
 from vault.node.soum_heartbeat import HeartbeatLoop
+from vault.node.soum_relay import relay_router
 from vault.node.soum_pinger import Pinger
 from vault.node.soum_storage import Corrupt, NotFound, Storage, decode_meta, encode_meta
 
@@ -164,6 +166,9 @@ def create_app(cfg: VaultConfig, pid: str, start_loops: bool = True) -> FastAPI:
     app.state.node = node
     node.app_state = app.state
     st = node.storage
+    app.include_router(relay_router(node))                   # S6: one-hop relay (§4.7)
+    if cfg.chaos.enabled:
+        app.include_router(chaos_router(node))               # S6: /_chaos/corrupt, /_chaos/disk_full
 
     @app.put("/v1/fragments/{fid}", status_code=201)
     async def put_fragment(fid: str, request: Request) -> FragmentPutResult:
@@ -240,5 +245,4 @@ def create_app(cfg: VaultConfig, pid: str, start_loops: bool = True) -> FastAPI:
     async def scrub_status() -> ScrubStatus:
         return node.scrub
 
-    # TODO S6: relay, node chaos
     return app
