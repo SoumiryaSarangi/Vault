@@ -1,0 +1,45 @@
+{
+  "availability_60s": 0.998,
+  "readable_now_pct": 100.0,
+  "overhead": {
+    "cluster": 2.41,
+    "by_policy": {
+      "rep3": 3.0,
+      "ec42": 1.5,
+      "rep2": 2.0
+    }
+  },
+  "last_incident": {
+    "id": 6,
+    "detect_s": 1.9,
+    "grace_s": 8.0,
+    "repair_s": 4.1,
+    "mttr_s": 14.0,
+    "bytes": 220000000
+  },
+  "incidents_avg_mttr_s": 14.6,
+  "unnecessary_repairs_avoided": 3,
+  "repair": {
+    "bytes_total": 880000000,
+    "mbps_now": 42.0
+  },
+  "rebalance": {
+    "last": {
+      "moved_fraction": 0.15,
+      "ideal_fraction": 0.143
+    }
+  },
+  "ifl": {
+    "histogram": {
+      "1": 0,
+      "2": 71,
+      "3": 133
+    },
+    "min": 2,
+    "at_risk_files": 0
+  },
+  "scrub": {
+    "checked_last_pass": 2412,
+    "corrupt_found_total": 10
+  }
+}

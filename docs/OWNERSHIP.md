@@ -1,0 +1,76 @@
+# Vault: File Ownership
+
+**Status:** v1.0 · **Owner:** Anushka (changes are gated, TEAM_PROTOCOL §4) · **Date:** 2026-09-26
+
+One file, one owner. Only the owner edits it. Anyone else writes a handoff (`handoffs/`, TEAM_PROTOCOL §5).
+
+## Naming rule
+
+- **Prefixed file** (`jaiveer_*`, `soum_*`, `urooz_*`, `anushka_*`): belongs to that person.
+- **Unprefixed file**: shared, owned by **Anushka**. Includes every contract, config, manifest, entry-point shim, `__init__.py`, and everything in `web/` not prefixed `urooz_`.
+- Next.js route files must be called `page.tsx`/`layout.tsx`, so their owner is listed below instead of in the name.
+- New files you create go in **your** folders with **your** prefix. Creating a new folder or a file in someone else's area is gated.
+
+## Repository root
+
+| Path | Owner | Notes |
+|---|---|---|
+| `vault.yaml`, `requirements.txt`, `pyproject.toml`, `README.md`, `CLAUDE.md`, `.gitignore`, `.env.example`, `vault`, `vault.cmd` | Anushka | all gated |
+| `docs/**` (PRD, ARCHITECTURE, TECH_STACK, DESIGN, MASTER_PLAN, OWNERSHIP, contracts/) | Anushka | gated |
+| `docs/TEAM_PROTOCOL.md` | Anushka | the law |
+| `tasks/<name>_tasks.md`, `tasks/claude/<name>.CLAUDE.local.md` | Anushka writes; each person may tick their own checkboxes | |
+| `updates/<name>_update.md` | that person | mandatory after every task |
+| `handoffs/<from>_to_<to>_*.md` | created by `<from>`; status updated by `<to>` | |
+| `demo/urooz_*` | Urooz | runbook, pitch, video notes |
+| `tests/jaiveer/`, `tests/soum/`, `tests/urooz/`, `tests/anushka/` | that person | fakes, e2e and smoke scripts; prefix files with your name |
+| `data/`, `logs/`, `oracle_runs/`, `samples/` | nobody (generated, git-ignored) | |
+
+## Backend: `backend/vault/`
+
+| Path | Owner | Task |
+|---|---|---|
+| `__init__.py`, `__main__.py` (CLI) | Anushka | |
+| `common/models.py` ★ | Anushka | **frozen contract** |
+| `common/config.py`, `ids.py`, `hashing.py`, `log.py`, `rpc.py`, `netsim.py`, `events.py`, `service.py`, `brain_api.py`, `__init__.py` | Anushka | shared infra (done in scaffold) |
+| `common/jaiveer_phi.py`, `common/jaiveer_placement.py`, `common/jaiveer_fate.py` | Jaiveer | J1, J2, J3 |
+| `common/soum_ec.py` | Soum | S1 |
+| `node/__main__.py` | Anushka | shim |
+| `node/soum_*.py` (app, storage, scrubber, heartbeat, pinger, pull, relay, chaos) | Soum | S2–S4, S6 |
+| `metadata/__main__.py` | Anushka | shim |
+| `metadata/jaiveer_*` (app, db, schema.sql, uploads, objects, cluster, stream, reports) | Jaiveer | J4–J7 |
+| `brain/jaiveer_*` (detector, membership, scheduler, repair, auditor, incidents, metrics, summary) | Jaiveer | J6–J9 |
+| `brain/soum_*` (reconciler, gc, rebalancer) | Soum | S8, S9 |
+| `gateway/__main__.py` | Anushka | shim |
+| `gateway/soum_*` (app, put, get, routing, stats) | Soum | S5, S7 |
+| `supervisor/anushka_*` (app, procs, chaos_ctl) | Anushka | A2, A3 |
+| `supervisor/urooz_scripts.py`, `supervisor/urooz_seed.py` | Urooz | U3, U2 |
+| `oracle/__main__.py` | Anushka | shim |
+| `oracle/urooz_*` (app, ledger, checker, workload, runs) | Urooz | U1, U3, U5 |
+| `tests/test_common.py` | Anushka | |
+| `tests/test_jaiveer_*.py` | Jaiveer | |
+| `tests/test_soum_*.py` | Soum | |
+| `tests/test_urooz_*.py` | Urooz | |
+
+## Frontend: `web/`
+
+| Path | Owner | Task |
+|---|---|---|
+| `package.json`, `package-lock.json`, `tsconfig.json`, `next.config.ts`, `postcss.config.mjs`, `.env.example` | Anushka | gated |
+| `app/layout.tsx`, `app/globals.css` (design tokens) | Anushka | gated |
+| `app/(landing)/page.tsx` | **Urooz** | U4 |
+| `components/landing/urooz_*.tsx` | **Urooz** | U4 |
+| `app/console/**` (layout + Overview, Files, Fate, Oracle pages) | Anushka | A5–A10 |
+| `components/brand/*` (VaultMark, VaultMarkStatic, Wordmark) | Anushka | A4; Urooz uses them |
+| `components/{console,scene,files,fate,oracle,ui}/*` | Anushka | A5–A10 |
+| `lib/contracts.ts` ★ | Anushka | **frozen contract** |
+| `lib/api.ts`, `lib/sse.ts`, `lib/store.ts`, `lib/format.ts` | Anushka | |
+| `fixtures/*.json` | Anushka | validated against models.py |
+| `public/brand/*` | Anushka | |
+
+## Cross-owner imports (allowed)
+
+- Anyone may **import** shared `common/*` modules.
+- Soum's brain modules may import `jaiveer_fate` and `jaiveer_placement` (pure functions, stable signatures), and nothing else of Jaiveer's. Everything else goes through `BrainContext`.
+- Jaiveer's metadata app imports Soum's brain entry points listed in `common/brain_api.py`.
+- Supervisor (Anushka) imports `urooz_scripts.steps` and `urooz_seed.seed`.
+- Urooz's landing imports `components/brand/*` and `lib/*` only.

@@ -1,0 +1,202 @@
+{
+  "ts": 1790380000.0,
+  "mode": "vault",
+  "config_version": 3,
+  "summary": {
+    "level": "degraded",
+    "human": "Your data is safe, but 71 files have fewer copies than usual. Vault is rebuilding them (40% done).",
+    "technical": "min IFL 2; 214 chunks below target",
+    "files": 204,
+    "logical_bytes": 312000000,
+    "raw_bytes": 900000000,
+    "overhead": 2.88,
+    "under_replicated_chunks": 214,
+    "at_risk_files": 0,
+    "unreadable_files": 0,
+    "min_ifl": 2
+  },
+  "nodes": [
+    {
+      "id": "n1",
+      "display_name": "Reception PC",
+      "addr": "127.0.0.1:7101",
+      "state": "ALIVE",
+      "phi": 0.3,
+      "route": "direct",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "A",
+        "switch": "S1",
+        "disk_batch": "D1",
+        "version": "1.0"
+      },
+      "disk_used": 150000000,
+      "capacity": 2147483648,
+      "fragments": 402,
+      "faults": []
+    },
+    {
+      "id": "n2",
+      "display_name": "Doctor's Desk",
+      "addr": "127.0.0.1:7102",
+      "state": "ALIVE",
+      "phi": 0.4,
+      "route": "direct",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "A",
+        "switch": "S2",
+        "disk_batch": "D2",
+        "version": "1.0"
+      },
+      "disk_used": 159000000,
+      "capacity": 2147483648,
+      "fragments": 395,
+      "faults": []
+    },
+    {
+      "id": "n3",
+      "display_name": "Lab Laptop",
+      "addr": "127.0.0.1:7103",
+      "state": "DOWN",
+      "phi": 11.2,
+      "route": "direct",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "B",
+        "switch": "S2",
+        "disk_batch": "D3",
+        "version": "1.0"
+      },
+      "disk_used": 168000000,
+      "capacity": 2147483648,
+      "fragments": 388,
+      "faults": []
+    },
+    {
+      "id": "n4",
+      "display_name": "Pharmacy PC",
+      "addr": "127.0.0.1:7104",
+      "state": "ALIVE",
+      "phi": 0.6,
+      "route": "direct",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "B",
+        "switch": "S3",
+        "disk_batch": "D1",
+        "version": "1.0"
+      },
+      "disk_used": 177000000,
+      "capacity": 2147483648,
+      "fragments": 381,
+      "faults": []
+    },
+    {
+      "id": "n5",
+      "display_name": "Records Room",
+      "addr": "127.0.0.1:7105",
+      "state": "ALIVE",
+      "phi": 0.7,
+      "route": "relay:n2",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "C",
+        "switch": "S3",
+        "disk_batch": "D2",
+        "version": "1.0"
+      },
+      "disk_used": 186000000,
+      "capacity": 2147483648,
+      "fragments": 374,
+      "faults": []
+    },
+    {
+      "id": "n6",
+      "display_name": "Admin Office",
+      "addr": "127.0.0.1:7106",
+      "state": "ALIVE",
+      "phi": 0.8,
+      "route": "direct",
+      "slow": false,
+      "fenced": false,
+      "epoch": 1,
+      "labels": {
+        "power": "C",
+        "switch": "S1",
+        "disk_batch": "D3",
+        "version": "1.0"
+      },
+      "disk_used": 195000000,
+      "capacity": 2147483648,
+      "fragments": 367,
+      "faults": []
+    }
+  ],
+  "control": [
+    {
+      "id": "meta",
+      "ok": true
+    },
+    {
+      "id": "gw",
+      "ok": true
+    }
+  ],
+  "links": [
+    {
+      "a": "meta",
+      "b": "n5",
+      "a_to_b": false,
+      "b_to_a": false,
+      "relay": "n2"
+    }
+  ],
+  "repair": {
+    "queued": {
+      "p0": 0,
+      "p1": 120,
+      "p2": 0,
+      "p3": 0,
+      "p4": 0
+    },
+    "active": [
+      {
+        "job_id": 17,
+        "kind": "repair",
+        "reason": "under_replicated",
+        "src": "n1",
+        "dst": "n4",
+        "bytes": 1048576,
+        "progress": 0.6
+      }
+    ],
+    "mbps": 42.0
+  },
+  "incident": {
+    "id": 7,
+    "kind": "node_dead",
+    "subject": "n3",
+    "fault_at": 1790379986.0,
+    "detected_at": 1790379988.0,
+    "repair_started_at": 1790379996.0,
+    "recovered_at": null,
+    "affected_chunks": 214,
+    "remaining_chunks": 128,
+    "bytes_repaired": 90000000
+  },
+  "traffic": {
+    "puts_per_s": 3.2,
+    "gets_per_s": 5.1
+  }
+}

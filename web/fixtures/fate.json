@@ -1,0 +1,58 @@
+{
+  "fate_keys": [
+    "power",
+    "switch",
+    "disk_batch"
+  ],
+  "domains": [
+    {
+      "key": "power",
+      "value": "A",
+      "nodes": [
+        "n1",
+        "n2"
+      ],
+      "cluster_wide": false
+    },
+    {
+      "key": "power",
+      "value": "B",
+      "nodes": [
+        "n3",
+        "n4"
+      ],
+      "cluster_wide": false
+    },
+    {
+      "key": "power",
+      "value": "C",
+      "nodes": [
+        "n5",
+        "n6"
+      ],
+      "cluster_wide": false
+    }
+  ],
+  "cluster_wide": [
+    {
+      "key": "version",
+      "value": "1.0",
+      "human": "All machines run the same software version (1.0). One bug could affect all of them."
+    }
+  ],
+  "files": {
+    "histogram": {
+      "1": 0,
+      "2": 71,
+      "3": 133
+    },
+    "at_risk": []
+  },
+  "advice": [
+    {
+      "human": "Power Strip A feeds 4 of 6 machines. Give Lab Laptop or Records Room its own power supply to get 3 independent copies.",
+      "technical": "max IFL 2 < target 3; power=A covers 4 nodes"
+    }
+  ],
+  "last_audit_at": 1790379998.0
+}

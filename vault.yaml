@@ -1,0 +1,65 @@
+# Vault cluster config (ARCHITECTURE §9). Owner: Anushka. Changes are gated (TEAM_PROTOCOL §4).
+# Env overrides: VAULT_CONFIG=path/to/vault.yaml ; VAULT_DEMO=1 sets detector.dead_after_s: 8
+cluster:
+  data_dir: ./data
+  logs_dir: ./logs
+  host: 127.0.0.1
+  ports: { supervisor: 7070, metadata: 7000, gateway: 7080, oracle: 7090, node_base: 7101 }
+  chunk_size: 1048576
+  node_capacity_bytes: 2147483648
+  default_buckets: { clinic: rep3, archive: ec42, scratch: rep2, oracle: rep3 }
+
+nodes:   # id: display name + labels
+  n1: { display_name: "Reception PC",  labels: { power: A, switch: S1, disk_batch: D1, version: "1.0" } }
+  n2: { display_name: "Doctor's Desk", labels: { power: A, switch: S2, disk_batch: D2, version: "1.0" } }
+  n3: { display_name: "Lab Laptop",    labels: { power: B, switch: S2, disk_batch: D3, version: "1.0" } }
+  n4: { display_name: "Pharmacy PC",   labels: { power: B, switch: S3, disk_batch: D1, version: "1.0" } }
+  n5: { display_name: "Records Room",  labels: { power: C, switch: S3, disk_batch: D2, version: "1.0" } }
+  n6: { display_name: "Admin Office",  labels: { power: C, switch: S1, disk_batch: D3, version: "1.0" } }
+
+policies:
+  rep2: { type: replication, n: 2, w: 2 }
+  rep3: { type: replication, n: 3, w: 2 }
+  ec42: { type: erasure, k: 4, m: 2, w: 5 }
+
+fate:
+  keys: [power, switch, disk_batch, version]     # most → least important
+  improve_max_node_fill: 0.85
+  improve_max_imbalance: 0.20
+
+placement: { vnodes_per_node: 128 }
+
+detector:
+  heartbeat_ms: 500
+  ping_ms: 1000
+  window: 100
+  min_std_ms: 200
+  phi_suspect: 8.0
+  confirm_ms: 1000
+  dead_after_s: 15          # demo: 8
+  lease_ttl_ms: 5000        # must be < dead_after_s * 1000
+  startup_grace_s: 10
+  slow_rtt_ms: 300
+
+repair: { scan_ms: 500, max_concurrent: 8, per_node: 2, bandwidth_mbps: 50, max_attempts: 3 }
+scrub:  { rate_mbps: 20, recent_first_minutes: 5 }
+gc:     { interval_s: 5, upload_timeout_s: 60, superseded_grace_s: 30, orphan_grace_s: 60 }
+inventory: { interval_s: 30 }
+gateway: { chunks_in_flight: 2, spares: 2, hedge_ms: 150, timeout_control_s: 1.0, timeout_data_s: 10.0 }
+
+safety:                      # Naive mode turns every switch off
+  verify_on_receive: true
+  verify_on_read: true
+  durable_writes: true
+  quorum_writes: true
+  read_failover: true
+  repair: true
+  scrub: true
+  fate_aware_placement: true
+  fencing: true
+  relay: true
+
+storage: { sim_page_cache: false, dirty_expire_ms: 5000 }   # P1; Oracle runs set true
+chaos:   { enabled: true }
+oracle:  { clients: 8, keyspace: 200, duration_s: 60, settle_max_s: 60, seed: 42, script: standard }
+web:     { origin: "http://localhost:3000" }

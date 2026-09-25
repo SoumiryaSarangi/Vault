@@ -1,0 +1,17 @@
+# Owner: Anushka. Packaging for `pip install -e .` and pytest config. Dependencies live in requirements.txt.
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vault"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["backend/vault/tests", "tests"]
+asyncio_mode = "auto"

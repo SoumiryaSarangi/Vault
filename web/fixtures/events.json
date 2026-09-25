@@ -1,0 +1,42 @@
+{
+  "events": [
+    {
+      "id": 3,
+      "ts": 1790379996.0,
+      "type": "repair.started",
+      "severity": "info",
+      "subject": {
+        "node": "n3"
+      },
+      "human": "Rebuilding 214 copies (224.4 MB) that were on Lab Laptop. Files closest to loss go first.",
+      "technical": "incident #7: 0 P0, 214 P1 jobs; 50 MB/s cap",
+      "data": {}
+    },
+    {
+      "id": 2,
+      "ts": 1790379988.0,
+      "type": "node.down",
+      "severity": "warn",
+      "subject": {
+        "node": "n3"
+      },
+      "human": "Lab Laptop stopped responding. Your files are still readable.",
+      "technical": "φ=9.3; no peer reached n3 in 1.0s",
+      "data": {
+        "phi": 9.3
+      }
+    },
+    {
+      "id": 1,
+      "ts": 1790379985.0,
+      "type": "chaos.kill",
+      "severity": "info",
+      "subject": {
+        "node": "n3"
+      },
+      "human": "You turned off Lab Laptop.",
+      "technical": "kill n3",
+      "data": {}
+    }
+  ]
+}

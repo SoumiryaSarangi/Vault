@@ -1,0 +1,35 @@
+{
+  "name": "vault-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1",
+    "@react-three/fiber": "9.8.1",
+    "@react-three/drei": "10.7.9",
+    "@shadergradient/react": "2.4.20",
+    "@paper-design/shaders-react": "0.0.81",
+    "gsap": "3.15.0",
+    "@gsap/react": "2.1.2",
+    "lenis": "1.3.26",
+    "zustand": "5.0.15",
+    "lucide-react": "1.48.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@types/node": "22.19.1",
+    "@types/three": "0.186.0",
+    "tailwindcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.3"
+  }
+}

@@ -1,0 +1,2 @@
+-- SQLite schema (ARCHITECTURE §3.5). Owner: Jaiveer. Task J4.
+-- Copy §3.5 verbatim; the schema is a contract (changes are gated, TEAM_PROTOCOL §4).

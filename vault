@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# ./vault up | status | reset | seed
+cd "$(dirname "$0")" && PYTHONPATH="backend${PYTHONPATH:+:$PYTHONPATH}" exec python -m vault "$@"

@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+# Runtime (generated)
+data/
+logs/
+oracle_runs/
+samples/
+# Secrets / local
+.env
+.env.local
+CLAUDE.local.md
+# Web
+web/node_modules/
+web/.next/
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo
+web/.env.local
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
