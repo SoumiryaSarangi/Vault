@@ -34,7 +34,7 @@ function useOracleRuns() {
       // API not available yet — use fixtures
       if (!useFixtures) {
         setUseFixtures(true);
-        const runs = (fixtureData as RunList).runs;
+        const runs = (fixtureData as unknown as RunList).runs;
         for (const r of runs) {
           // Treat RunSummary as RunStatus (fixtures have full fields)
           const full = r as unknown as RunStatus;
