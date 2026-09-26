@@ -32,6 +32,10 @@ cd web && npm run dev     # http://localhost:3000
 ```
 Stop with Ctrl+C. If the supervisor is killed hard, the next `vault up` cleans up leftover processes itself.
 
+## Deploying
+
+See `docs/DEPLOYMENT.md`: one EC2 instance behind Caddy (works today), or one instance per machine (after three small code changes).
+
 ## Layout
 
 ```
