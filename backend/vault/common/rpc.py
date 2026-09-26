@@ -137,26 +137,38 @@ class Rpc:
             kw["content"] = content
         if params is not None:
             kw["params"] = params
+        async def direct() -> httpx.Response:
+            r = await self._send(target, f"http://{self.addr(target)}{path}", method,
+                                 self._headers(headers, 0), timeout, **kw)
+            r.extensions["vault_route"] = "direct"
+            return r
+
+        relay_ok = allow_relay and self.relay_enabled and target.startswith(("n", "meta", "gw"))
         direct_err: Optional[NetworkError] = None
-        if self.link_ok(self.pid, target) or not (allow_relay and self.relay_enabled):
+        direct_tried = False
+        if self.link_ok(self.pid, target) or not relay_ok:
+            direct_tried = True
             try:
-                r = await self._send(target, f"http://{self.addr(target)}{path}", method,
-                                     self._headers(headers, 0), timeout, **kw)
-                r.extensions["vault_route"] = "direct"
-                return r
+                return await direct()
             except NetworkError as e:
                 direct_err = e
                 self.mark_bad(target)
-        if not (allow_relay and self.relay_enabled) or not target.startswith(("n", "meta", "gw")):
-            raise direct_err or NetworkError(target, "link bad, relay disabled")
-        for relay in self.relay_candidates(target):
+        if relay_ok:
+            for relay in self.relay_candidates(target):
+                try:
+                    r = await self._send(relay, f"http://{self.addr(relay)}/v1/relay/{target}{path}", method,
+                                         self._headers(headers, 1), timeout, **kw)
+                    r.extensions["vault_route"] = f"relay:{relay}"
+                    return r
+                except NetworkError:
+                    continue
+        # A "bad link" mark is only a hint (one slow ping under load sets it). If no relay could help,
+        # still try the direct route instead of failing every request to that target for 3 s.
+        if not direct_tried:
             try:
-                r = await self._send(relay, f"http://{self.addr(relay)}/v1/relay/{target}{path}", method,
-                                     self._headers(headers, 1), timeout, **kw)
-                r.extensions["vault_route"] = f"relay:{relay}"
-                return r
-            except NetworkError:
-                continue
+                return await direct()
+            except NetworkError as e:
+                direct_err = e
         raise direct_err or NetworkError(target, "no relay available")
 
     async def forward(self, target: str, method: str, path: str, *, origin: str, content: bytes,
