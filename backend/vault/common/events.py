@@ -36,7 +36,7 @@ TEMPLATES: dict[str, tuple[str, str, str]] = {
     "node.fenced": ("warn", "{node} lost contact with Vault and stopped accepting new files, to stay safe.",
                     "lease expired {s}s ago; writes refused"),
     "node.slow": ("info", "{node} is answering slowly. Vault will read from other machines first.",
-                  "p50 rtt {ms}ms > {limit}ms"),
+                  "{why}"),   # detector explains which rule fired (RTT or ping loss)
     "node.rejoined": ("success", "{node} is back. Removed {n} extra copies it no longer needs.",
                       "re-registered epoch {e}; kept {kept}, trimmed {trim}"),
     "node.drained": ("success", "{node} is empty and can be unplugged.", "all fragments moved; RETIRED"),
