@@ -41,7 +41,7 @@ detector:
   startup_grace_s: 10
   slow_rtt_ms: 300
 
-repair: { scan_ms: 500, max_concurrent: 8, per_node: 2, bandwidth_mbps: 50, max_attempts: 3 }
+repair: { scan_ms: 500, max_concurrent: 8, per_node: 4, bandwidth_mbps: 50, max_attempts: 3 }
 scrub:  { rate_mbps: 20, recent_first_minutes: 5 }
 gc:     { interval_s: 5, upload_timeout_s: 60, superseded_grace_s: 30, orphan_grace_s: 60 }
 inventory: { interval_s: 30 }
