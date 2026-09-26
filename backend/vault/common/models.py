@@ -278,6 +278,7 @@ class Inventory(_M):
     node_id: str
     epoch: int
     fragments: list[InventoryItem] = Field(default_factory=list)
+    sent_at: Optional[float] = None     # node's clock, same as mtime: file age without cross-laptop clock skew
 
 
 class InventoryResult(_M):

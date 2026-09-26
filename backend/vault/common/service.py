@@ -26,7 +26,9 @@ from vault.common.netsim import NetSim, init_netsim, install_netsim
 from vault.common.rpc import init_rpc
 
 EXPOSE_HEADERS = ["ETag", "X-Vault-Seq", "X-Vault-Commit-Seq", "X-Vault-Read-Path"]
-LOCAL_ORIGINS = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+# localhost, plus private LAN addresses so the dashboard can be opened from any laptop in LAN mode
+LOCAL_ORIGINS = (r"http://(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}"
+                 r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?")
 
 Lifespan = Callable[[FastAPI], "AsyncIterator[None]"]
 
@@ -65,7 +67,7 @@ def make_app(cfg: VaultConfig, pid: str, lifespan: Optional[Lifespan] = None, ti
     app.state.cfg, app.state.pid, app.state.netsim = cfg, pid, ns
     app.state.config_version = 0
     install_netsim(app, ns, enabled=cfg.chaos.enabled)
-    # The dashboard (web.origin, plus localhost/127.0.0.1 on any port for a second dev server) may call us.
+    # The dashboard (web.origin, plus localhost/LAN addresses on any port) may call us.
     app.add_middleware(CORSMiddleware, allow_origins=[cfg.web.origin], allow_origin_regex=LOCAL_ORIGINS,
                        allow_methods=["*"], allow_headers=["*"], expose_headers=EXPOSE_HEADERS)
 
@@ -93,5 +95,5 @@ def run_service(default_pid: str, factory: Callable[[VaultConfig, str], FastAPI]
     if sys.platform == "win32":   # subprocesses and sockets need the Proactor loop on Windows
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     app = factory(cfg, args.id)
-    uvicorn.run(app, host=cfg.cluster.host, port=cfg.port(args.id), workers=1, log_level="warning",
+    uvicorn.run(app, host=cfg.listen_host(), port=cfg.port(args.id), workers=1, log_level="warning",
                 access_log=False, timeout_graceful_shutdown=1)

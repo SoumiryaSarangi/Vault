@@ -27,12 +27,14 @@ class Ports(_C):
     gateway: int = 7080
     oracle: int = 7090
     node_base: int = 7101
+    agent: int = 7071               # LAN mode: the node agent on each remote laptop (soum_agent)
 
 
 class ClusterCfg(_C):
     data_dir: str = "./data"
     logs_dir: str = "./logs"
-    host: str = "127.0.0.1"
+    host: str = "127.0.0.1"         # where the others reach meta/gw/sup/oracle (LAN mode: the hub's IP)
+    bind_host: Optional[str] = None # where our own server listens; default = host (LAN mode: 0.0.0.0)
     ports: Ports = Field(default_factory=Ports)
     chunk_size: int = 1048576
     node_capacity_bytes: int = 2147483648
@@ -210,6 +212,10 @@ class VaultConfig(_C):
     def url(self, pid: str) -> str:
         return f"http://{self.addr(pid)}"
 
+    def listen_host(self) -> str:
+        """Interface our own server binds to (LAN mode listens on every interface)."""
+        return self.cluster.bind_host or self.cluster.host
+
     def data_path(self, *parts: str) -> Path:
         return Path(self.cluster.data_dir, *parts)
 
@@ -221,6 +227,12 @@ CONTROL_DISPLAY_NAMES = {"meta": "Vault index", "gw": "Vault gateway"}   # DESIG
 ENV_NODE_DISPLAY_NAME = "VAULT_NODE_DISPLAY_NAME"
 ENV_NODE_LABELS = "VAULT_NODE_LABELS"   # JSON object
 
+# LAN mode (docs/soum_lan_demo.md): VAULT_HUB=<hub IP> makes every address that isn't a node's point at the
+# hub and makes our own server listen on all interfaces. A node on another laptop also gets
+# VAULT_NODE_ADDR=<its own IP>:<port>, the address it advertises when it registers.
+ENV_HUB = "VAULT_HUB"
+ENV_NODE_ADDR = "VAULT_NODE_ADDR"
+
 
 def node_identity(cfg: "VaultConfig", node_id: str) -> tuple[str, dict[str, str]]:
     """(display_name, labels) for a node: from vault.yaml, else from the supervisor's env vars."""
@@ -231,10 +243,20 @@ def node_identity(cfg: "VaultConfig", node_id: str) -> tuple[str, dict[str, str]
     return os.environ.get(ENV_NODE_DISPLAY_NAME, node_id), {str(k): str(v) for k, v in labels.items()}
 
 
+def node_addr(cfg: "VaultConfig", node_id: str) -> str:
+    """The address a node advertises for itself: VAULT_NODE_ADDR (another laptop), else from the config."""
+    return os.environ.get(ENV_NODE_ADDR) or cfg.addr(node_id)
+
+
 def load_config(path: Optional[str] = None) -> VaultConfig:
     path = path or os.environ.get("VAULT_CONFIG", "vault.yaml")
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
     if os.environ.get("VAULT_DEMO") == "1":
         raw.setdefault("detector", {})["dead_after_s"] = 8
+    hub = os.environ.get(ENV_HUB)
+    if hub:
+        cluster = raw.setdefault("cluster", {})
+        cluster["host"] = hub
+        cluster.setdefault("bind_host", "0.0.0.0")
     return VaultConfig.model_validate(raw)
