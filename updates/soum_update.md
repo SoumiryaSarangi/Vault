@@ -304,3 +304,41 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Anything other teammates must know or do:
   - **Jaiveer:** the reconciler and GC are live in your process. Trims use `source_node`, as your `_plan_trim` expects. Rows I trim are put in `trim` state first, like your `_delete_copy` does. I don't queue repairs myself; I set rows to `missing`/`corrupt` and rely on your scheduler's scan.
   - **Urooz (Oracle):** a dead node's return no longer leaves extra copies, and superseded versions vanish after ~30 s, so `under_protected` after settling should reflect real problems only.
+
+## [Hour 10] S9 Rebalancer (last data-plane task)
+- What was done (`brain/soum_rebalancer.py`, ARCHITECTURE §4.13):
+  - **`on_node_added(ctx, node_id)`:**
+    - For every current chunk whose placement (`jaiveer_placement.place`, fate-aware unless Naive) now includes the new node and that has nothing there, move **one** fragment from a holder outside the desired set.
+    - A move is skipped if it would lower the chunk's IFL. Among allowed moves: best IFL, then the fullest source.
+    - Jobs: `kind=move, reason=rebalance, source_node, target_node=<new>`, P3; Jaiveer's executor makes them make-before-break.
+    - Idempotent.
+  - **Reporting:** `rebalance.started` (planned % and ideal 1/N). When every move job has finished: `rebalance.completed` (actual moved ÷ total vs ideal) **and** kv `rebalance_last` = `RebalanceLast`, which Jaiveer's `/v1/metrics` reads.
+  - **`on_drain(ctx, node_id)`:**
+    - One `move` (reason `drain`, `target_node=None`, so the executor picks the target) per current fragment on a DRAINING node.
+    - Re-queued if moves fail.
+    - `node.drained` once it's empty; `is_drained(ctx, id)` tells Jaiveer when to set RETIRED.
+  - **`run(ctx)`** every 2 s:
+    - Notices machines that weren't there when metadata started, once ALIVE (nobody calls `on_node_added` today, so the loop does), and calls `on_node_added`.
+    - Finishes rebalances.
+    - Drives drains for DRAINING nodes.
+- Files created/changed: `brain/soum_rebalancer.py`, `tests/test_soum_rebalancer.py` (new, 4 tests), `tests/test_soum_reconcile_gc.py` (the fake context now writes real `jobs` rows), `handoffs/soum_to_jaiveer_decommission_drain.md` (new)
+- Endpoints / functions / components exposed: `on_node_added(ctx, node_id)`, `on_drain(ctx, node_id)`, `is_drained(ctx, node_id) -> bool`, `run(ctx)`, `plan_moves(rows, node_id, placement, durable)`; kv `rebalance_last`.
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_rebalancer.py` (4 tests). Full suite: 244 passed.
+  - Live (`VAULT_DEMO=1 python -m vault up`, 40 files = 120 fragments), via the supervisor's `POST :7070/nodes/add`:
+    - **n7 "Storage Closet"** `{power:A, switch:S3, disk_batch:D1}`: **0 moves**. No fully independent triple can include it, so every move would drop IFL 3 → 2, and the rule forbids that. The timeline says "Moved 0% (ideal 14%)" and every file keeps IFL 3.
+    - **n8 "Server Room"** `{power:D, switch:S4, disk_batch:D4}`: 30 moves, 10.2 MB in 4 s. n8 holds 30 of 120 fragments; the total is still 120 (moves, not copies). All files still have `durable_min` 3 and IFL 3, and 40 of 40 reads are byte-identical.
+    - Timeline: "Balanced. Moved 26% of your data (ideal 12%)." `/v1/metrics` `rebalance.last` = `{moved_fraction: 0.2624, ideal_fraction: 0.125}`.
+- Known issues / TODO:
+  - **Decision needed (Anushka): the moved fraction is ≈ 2× ideal with fate-aware placement.**
+    - Pure ring order gives ≈ 1/N (unit test: 0.10–0.19 for n7).
+    - With fate-aware placement, a new machine that shares nothing is picked far more often, so ~26% moves instead of ~12.5%.
+    - The extra moves buy no safety: the files were already at IFL 3.
+    - Option: decide rebalance moves by **pure ring order** (still never lowering IFL), which gives ≈ 1/N on stage. That departs from the literal §4.13 wording ("if `place(chunk_id, n)` includes the new node"), so it needs your OK.
+  - Drain needs Jaiveer's decommission route and the RETIRED transition (handoff).
+  - Imbalance moves (max/min > 1.2) are P1, not built.
+- Anything other teammates must know or do:
+  - **Jaiveer:** handoff `handoffs/soum_to_jaiveer_decommission_drain.md` (`POST /v1/nodes/{id}/decommission` → DRAINING; RETIRED when `soum_rebalancer.is_drained(ctx, id)` is True).
+    - Your `rebalance_last` kv is written on every completed rebalance.
+    - The slow-flag handoff looks done (merged as `ae13b01`); please set its status to DONE.
+  - **Anushka:** "Add machine" now rebalances by itself; no call needed from the supervisor. Decision above.

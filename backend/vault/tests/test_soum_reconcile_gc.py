@@ -45,10 +45,18 @@ class FakeCtx:
                           incident_id=None):
         for j in self.jobs:
             if (j["kind"], j["chunk_id"], j["frag_idx"]) == (kind, chunk_id, frag_idx):
-                return 0
-        self.jobs.append({"kind": kind, "reason": reason, "chunk_id": chunk_id, "frag_idx": frag_idx,
+                return j["id"]
+
+        async def fn(c):                                # a real jobs row, like Jaiveer's enqueue_job_tx
+            cur = await c.execute("INSERT INTO jobs (kind, reason, chunk_id, frag_idx, source_node, target_node, "
+                                  "priority, state, created_at) VALUES (?,?,?,?,?,?,?, 'queued', ?)",
+                                  (getattr(kind, "value", kind), getattr(reason, "value", reason), chunk_id, frag_idx,
+                                   source_node, target_node, priority, self.t))
+            return cur.lastrowid
+        job_id = await self.db.write(fn)
+        self.jobs.append({"id": job_id, "kind": kind, "reason": reason, "chunk_id": chunk_id, "frag_idx": frag_idx,
                           "priority": priority, "source_node": source_node})
-        return len(self.jobs)
+        return job_id
 
     async def emit(self, type_, subject, data=None, **fields):
         self.events.append((type_, subject, data or {}, fields))
@@ -133,8 +141,9 @@ async def test_rejoin_restores_lost_and_trims_extra_copy_keeping_max_ifl(ctx):
     res = await reconcile_inventory(ctx, inv("n5", [(ids.fid(cid, 2), SHA)], t=ctx.t))
     rows = await frag_rows(ctx, cid)
     assert rows[(2, "n5")] == "ok" and rows[(2, "n2")] == "trim"
-    assert ctx.jobs == [{"kind": JobKind.trim, "reason": "over_replicated", "chunk_id": cid, "frag_idx": 2,
-                         "priority": 4, "source_node": "n2"}]
+    assert [{k: v for k, v in j.items() if k != "id"} for j in ctx.jobs] == [
+        {"kind": JobKind.trim, "reason": "over_replicated", "chunk_id": cid, "frag_idx": 2, "priority": 4,
+         "source_node": "n2"}]
     ev = [e for e in ctx.events if e[0] == "node.rejoined"][0]
     assert ev[2] == {"kept": 1, "trim": 1} and res.missing == 0
 
