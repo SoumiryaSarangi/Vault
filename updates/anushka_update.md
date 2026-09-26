@@ -92,3 +92,9 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Merged soum/data-plane (S8 reconciler + GC, S9 rebalancer) and jaiveer-j9-auditor (J9 + faster repair). 249 tests green.
 - Windows kill test: MTTR 15.9 s (detect 2.0 + grace 8.2 + repair 5.7) → with `repair.per_node: 4` (Jaiveer's suggestion, vault.yaml) 13.2–13.4 s, repeatable.
 - Shared-fate demo live: relabel n3, n5 → power=A: 104 files to IFL 1 → auditor moves → 0 at risk in 12 s (IFL 2/3) → advice text exact → cut Power Strip A (4 of 6 machines off) → 0 unreadable files.
+
+## [Hour 9] Accessibility fixes (PR #2, branch anushka-a11y-fixes)
+- What was done: WCAG AA pass on the dashboard: `--color-fg-2` raised to #8b93a8 for 4.5:1 contrast; "Skip to main content" link; `main` landmarks with `id="main-content"` (Oracle page's nested `<main>` is now a `<section>`); visible focus rings on every control (also forced-colors mode); `aria-modal` on the settings dialog; decorative arrows hidden from screen readers; stronger reduced-motion rules.
+- Files created/changed: web/app/globals.css, web/app/layout.tsx, web/app/(landing)/page.tsx, web/app/console/oracle/page.tsx, web/components/console/ConsoleShell.tsx, web/components/console/SettingsDrawer.tsx.
+- How to run / test it: `cd web && npm run build` (passes); Tab from the top of any page shows the skip link first.
+- Anything other teammates must know or do: **Urooz**: the landing page and the Oracle page (your files) are in this PR, so pull after it merges. Branch is `anushka-a11y-fixes`, not `anushka/a11y-fixes`: git can't create `anushka/…` while the `anushka` branch exists.
