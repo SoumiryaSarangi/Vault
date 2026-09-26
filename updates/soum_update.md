@@ -261,3 +261,46 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Anything other teammates must know or do:
   - **Jaiveer (J8 metrics):** gateway stats arrive every ~1 s as per-window counts; availability over 60 s = sum of ok ÷ sum of (ok + failed) over the last ~60 reports. `failover_reads` is per window too, so for `read.failover` aggregate it over a few windows (J7).
   - **Anushka:** the dashboard's `traffic` strip is live now.
+
+## [Hour 9] S8 Reconciler + GC (brain modules inside metadata, seam I4)
+- What was done:
+  - **`reconcile_inventory(ctx, inv)`** (`brain/soum_reconciler.py`), called by Jaiveer's inventory route, implements the ARCHITECTURE §4.10 table:
+
+    | Case | Action |
+    |---|---|
+    | row ok, file absent | `missing` (only if the row is > 10 s old, so a just-written fragment isn't flagged) |
+    | row ok, sha differs | `corrupt` |
+    | row `lost`, file back with the right sha | `ok` |
+    | no row, current committed version, sha matches | **adopt** as `ok` (EC: matched against the frag_idx's sha) |
+    | no row, version aborted/superseded/unknown, or current but wrong sha | **orphan** → trim once the file is older than `gc.orphan_grace_s` |
+    | version still pending | left alone |
+
+    - Chunks that got a copy back are checked for over-replication at once.
+    - A REJOINING node gets `node.rejoined` (kept / trimmed).
+    - `fragment.missing` and `fragment.corrupt` events are capped at 3 per inventory.
+    - Repairs for missing/corrupt rows are queued by Jaiveer's scheduler, which scans those states.
+  - **`soum_gc.run(ctx)`**, every `gc.interval_s` (5 s):
+    1. Pending uploads older than `upload_timeout_s` → aborted.
+    2. Rows of aborted versions, and of superseded versions older than `superseded_grace_s`, → trim.
+    3. Over-replication on current data: each extra `frag_idx` copy keeps the one that **maximizes IFL** (`jaiveer_fate.ifl`; tie: ring-preferred via `jaiveer_placement.place`) and trims the rest. Chunks with a queued/running repair or move are skipped, because a move is over-replicated on purpose.
+    4. Rows left in `trim` get their job re-queued.
+    5. One aggregated `gc.cleaned` for leftover trims (aborted, superseded, orphan) that actually finished.
+  - Trims follow Jaiveer's executor: row → `trim`, then `enqueue_job(kind=trim, source_node=<node>, chunk_id, frag_idx, priority=4)`. Only `BrainContext` plus `jaiveer_fate` / `jaiveer_placement` are used, and I never enqueue or emit inside `db.write`.
+- Files created/changed: `brain/soum_reconciler.py`, `brain/soum_gc.py`, `tests/test_soum_reconcile_gc.py` (new, 7 tests; real schema via `Database` on a temp file + a fake `BrainContext`)
+- Endpoints / functions / components exposed:
+  - `reconcile_inventory(ctx, inv: Inventory) -> InventoryResult` (entry point fixed in `common/brain_api.py`)
+  - `soum_gc.run(ctx)`, which Jaiveer's `BRAIN_LOOPS` start automatically
+  - Helpers: `gc_pass(ctx) -> {expired, aborted, superseded, over_replicated}`, `over_replicated(ctx, chunk_ids=None)`, `choose_trims(...)`, `mark_and_trim(ctx, trims, reason)`
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_reconcile_gc.py` (7 tests). Full suite: 238 passed.
+  - **Live, rejoin** (`VAULT_DEMO=1 python -m vault up`, 12 files = 36 copies, n3 holds 8):
+    - Kill n3 → `node.dead` after 10 s → Jaiveer's repair rebuilds 8 copies elsewhere (44 `.blk` on disk).
+    - Start n3 → `node.rejoined` "Lab Laptop is back. Removed 8 extra copies it no longer needs." (kept 8, trimmed 8). Disk is back to **36** files, and every live file has `durable_min` 3.
+    - n3's originals were kept (the fate-aware placement has the higher IFL); the rebuilt copies were trimmed.
+  - **Live, superseded:** overwrite `xray-1.png` → 39 files; within 45 s the old version's 3 copies are deleted from disk (36 again), and `gc.cleaned` says "Cleaned up 1.3 MB … trimmed 3 fragments".
+- Known issues / TODO:
+  - `gc.cleaned` counts only trims queued since metadata started (the list is in memory), so after a metadata restart the first few may go unreported. The trims themselves still run.
+  - Adoption trusts the header sha in the inventory; the scrubber verifies the actual bytes later.
+- Anything other teammates must know or do:
+  - **Jaiveer:** the reconciler and GC are live in your process. Trims use `source_node`, as your `_plan_trim` expects. Rows I trim are put in `trim` state first, like your `_delete_copy` does. I don't queue repairs myself; I set rows to `missing`/`corrupt` and rely on your scheduler's scan.
+  - **Urooz (Oracle):** a dead node's return no longer leaves extra copies, and superseded versions vanish after ~30 s, so `under_protected` after settling should reflect real problems only.
