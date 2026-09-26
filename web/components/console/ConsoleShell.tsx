@@ -38,7 +38,7 @@ export default function ConsoleShell({ children }: { children: ReactNode }) {
       style={mode === "naive" ? { boxShadow: "inset 0 4px 0 var(--color-naive)" } : undefined}
     >
       <TopBar />
-      <main className="relative min-h-0">
+      <main id="main-content" tabIndex={-1} className="relative min-h-0 outline-none">
         {children}
         {/* floats over the bottom of the page so adding a fault never shifts the layout (DESIGN §4.3) */}
         <ActiveFaults />

@@ -98,7 +98,7 @@ export default function OraclePage() {
     .filter((v, i, arr) => i === 0 || v.t !== arr[i - 1].t || v.label !== arr[i - 1].label);
 
   return (
-    <main className="flex flex-col gap-6 p-6">
+    <section aria-label="Durability Oracle" className="flex flex-col gap-6 p-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
@@ -155,6 +155,6 @@ export default function OraclePage() {
           ⚠ Running again will reset the cluster and wipe all demo data. Use <code className="font-mono">vault reset</code> first if needed.
         </div>
       )}
-    </main>
+    </section>
   );
 }

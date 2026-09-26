@@ -54,6 +54,7 @@ export default function SettingsDrawer() {
         <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setOpen(false)}>
           <aside
             role="dialog"
+            aria-modal="true"
             aria-label="Settings"
             onClick={(e) => e.stopPropagation()}
             className="absolute top-0 right-0 bottom-0 flex w-[380px] flex-col gap-5 border-l border-line-strong bg-bg-1 p-5"
