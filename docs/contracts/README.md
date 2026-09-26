@@ -30,7 +30,13 @@ If this folder, ARCHITECTURE and the code disagree: **stop and ask Anushka** (AR
 10. **Chaos event types** (`ExternalEvent.type`): `chaos.kill`, `chaos.start`, `chaos.link_cut`, `chaos.link_restored`, `chaos.slow`, `chaos.freeze`, `chaos.corrupt`, `chaos.disk_full`, `chaos.clear`, `chaos.power_cut`, `chaos.power_restore`, `chaos.add_node`, `chaos.reset`. `data.at` is the injection time. After a full power cut, the `chaos.power_cut` event and its `FaultReport` are sent once metadata is back, with the original `at`.
 11. **`ChaosStep`** (models.py) is the shape of one step of a seeded chaos script: `{t, action, params}`. The action list and params are in its docstring. Urooz's `urooz_scripts.steps(name, seed, nodes) -> list[ChaosStep]` produces them; the supervisor's `POST /chaos/script` runs them. **Supervisor addition:** `POST /chaos/script/{id}/stop`.
 12. **Added machines (n7+)** aren't in `vault.yaml`. The supervisor passes their name and labels in env vars; a node gets its identity with `vault.common.config.node_identity(cfg, node_id) -> (display_name, labels)`, which works for every node. Their address is `cfg.addr("n7")` (port `node_base + 6`). Metadata must accept `POST /v1/nodes/register` from a node it hasn't seen.
-13. **CORS:** every service allows `web.origin` (`http://localhost:3000`) **and** any `http://localhost:<port>` / `http://127.0.0.1:<port>` (`common/service.py` `LOCAL_ORIGINS`), so opening the dashboard via 127.0.0.1 or on a second dev port works. There is no auth in the demo (PRD non-goal), so this is not a security boundary.
+13. **CORS:** every service allows `web.origin` (`http://localhost:3000`) **and** any `http://localhost:<port>` / `http://127.0.0.1:<port>` (`common/service.py` `LOCAL_ORIGINS`), so opening the dashboard via 127.0.0.1 or on a second dev port works. LAN mode adds private network origins (`10.*`, `192.168.*`, `172.16–31.*`). There is no auth in the demo (PRD non-goal), so this is not a security boundary.
+14. **LAN mode** (`docs/soum_lan_demo.md`, Soum, approved by Anushka).
+    - **Supervisor routes:** `POST /nodes/join` (`JoinRequest` → `JoinResult`), sent by the node agent every 3 s, idempotent; `POST /nodes/{id}/rename` (`RenameRequest` → `Proc`); `GET /cluster/info` (`ClusterInfo`).
+    - **Node agent routes** (`node/soum_agent.py`): `GET /agent/status`, `POST /agent/node/start|stop|restart|wipe`, all → `AgentStatus`.
+    - **`Proc`** gains `remote`, `host` and `note` ("asleep or off the network").
+    - **`Inventory`** gains `sent_at`, the node's clock, used for orphan age.
+    - **Config:** `ports.agent` and `cluster.bind_host`. Env vars `VAULT_HUB` and `VAULT_NODE_ADDR`.
 
 ## Headers (ARCHITECTURE §4.1–4.7, §7.3)
 

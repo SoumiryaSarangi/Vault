@@ -342,3 +342,47 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
     - Your `rebalance_last` kv is written on every completed rebalance.
     - The slow-flag handoff looks done (merged as `ae13b01`); please set its status to DONE.
   - **Anushka:** "Add machine" now rebalances by itself; no call needed from the supervisor. Decision above.
+
+## [Hour 11] LAN mode: the 4-laptop demo, node rename, add a real or simulated machine
+- **Approval:** Soum reports that Anushka approved Soum editing files outside the data plane for this feature (config, service, models/contracts.ts, supervisor, `__main__`, dashboard, `next.config.ts`, docs, and 2 lines of Jaiveer's). FYI handoffs: `handoffs/soum_to_anushka_lan_mode.md`, `handoffs/soum_to_jaiveer_lan_register_addr.md`.
+- What was done:
+  - **Hub:** `python -m vault up --lan` makes this laptop the hub (auto-detected IP, `vault.lan.yaml`).
+  - **Joining laptops:** each runs `python -m vault join --hub <ip> --id n2 --name … --strip B`, which starts a node agent plus that laptop's machine.
+  - **Supervisor:** treats joined machines as remote. Turn off/on and power cuts go through the agent. A sleeping laptop shows "asleep or off the network". Reset wipes their data too.
+  - **Addresses:** nodes and the gateway learn every node's address from the cluster view; metadata dials the registered address; bind address and advertised address are now separate.
+  - **Clock skew:** orphan age uses the node's own clock (`Inventory.sent_at`).
+  - **Dashboard:**
+    - rename a machine inline (pencil on the card);
+    - Add has **Simulated** and **Real laptop** tabs (the join command, pre-filled, with a Copy button);
+    - joined machines show a laptop badge and IP;
+    - strips come from live labels;
+    - it works when opened as `http://<hub-ip>:3000`.
+- Files created/changed:
+  - **new:** `backend/vault/node/soum_agent.py`, `backend/vault/common/soum_lan.py`, `vault.lan.yaml`, `docs/soum_lan_demo.md`, `tests/test_soum_lan.py` (14 tests), `tests/test_soum_lan_join.py` (11 tests);
+  - **mine:** `node/soum_heartbeat.py`, `node/soum_pinger.py`, `brain/soum_reconciler.py`;
+  - **Anushka's:** `common/config.py`, `common/service.py`, `common/models.py`, `supervisor/anushka_{procs,cluster,app}.py`, `__main__.py`, `web/lib/{api,chaos,contracts}.ts`, `web/components/console/{NodeCard,NodeList,ChaosDock}.tsx`, `web/next.config.ts`, `docs/contracts/README.md` (item 14), `docs/MASTER_PLAN.md` (§10 decision);
+  - **Jaiveer's:** `metadata/jaiveer_cluster.py`, `metadata/jaiveer_app.py` (`set_addr` for every registration).
+- Endpoints / functions / components exposed:
+  - supervisor: `POST /nodes/join` (`JoinRequest` → `JoinResult`), `POST /nodes/{id}/rename` (`RenameRequest` → `Proc`), `GET /cluster/info` (`ClusterInfo`);
+  - agent: `GET /agent/status`, `POST /agent/node/start|stop|restart|wipe` (→ `AgentStatus`);
+  - `Proc.remote/host/note`; `config.node_addr()`, `VaultConfig.listen_host()`, `soum_lan.detect_lan_ip()`;
+  - env vars `VAULT_HUB` and `VAULT_NODE_ADDR`;
+  - web: `chaos.rename()`, `chaos.clusterInfo()`.
+- How to run / test it:
+  - `python -m pytest -q`: **269 passed**.
+  - Live run on one laptop: hub plus 3 agents (`--agent-port 7072/7073/7074`), then `vault reset` (200 files, IFL 3). Results:
+    - **Turn off Lab Laptop** via `/procs/n3/kill`, forwarded to its agent: DEAD at 10 s, repaired to IFL 3 in ~30 s. A download during the outage matched its SHA-256.
+    - **Turn on:** REJOINING, then ALIVE; extra copies trimmed; 0 damaged.
+    - **OS-suspending n2's agent and node** (lid-close stand-in): the "asleep or off the network" note within 2 s, then DEAD and rebuild. On resume: REJOINING, then ALIVE.
+    - Rename works live. The dashboard loads over the LAN IP (checked with a headless Edge screenshot).
+  - Runbook: `docs/soum_lan_demo.md`.
+- Known issues / TODO:
+  - **Not yet tried on 4 physical laptops:** firewall, hotspot and lid settings follow the runbook, but need a rehearsal.
+  - **If the hub's IP changes** (it moves to another network), restart the hub and re-run `join` on each laptop with the new IP. A joining laptop's IP change is handled automatically.
+  - **2D view:** with 4 machines, the bottom node's labels overlap its strip label (Anushka's view; noted in the handoff).
+  - The Fate page has no rename (Overview cards do).
+- Anything other teammates must know or do:
+  - **Everyone:** read `docs/soum_lan_demo.md`. **Before demo day**, on every laptop: the firewall rule, "closing the lid → Sleep", the Private network profile, and `pip install -r requirements.txt`.
+  - **Anushka:** review the handoff and merge.
+  - **Jaiveer:** FYI handoff.
+  - **Urooz:** the demo runbook and pitch can use the scenes table in `docs/soum_lan_demo.md` §5.
