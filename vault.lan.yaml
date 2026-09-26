@@ -14,7 +14,8 @@ cluster:
   default_buckets: { clinic: rep3, archive: ec42, scratch: rep2, oracle: rep3 }
 
 nodes:   # the hub laptop's own machine; laptops 2, 3, 4 join as n2, n3, n4 on strips B, C, D
-  n1: { display_name: "Reception PC", labels: { power: A, switch: hotspot, disk_batch: D-n1, version: "1.0" } }
+  # switch W1 = the shared Wi-Fi hotspot (every laptop has it: a cluster-wide risk); disk D1 = this laptop's disk
+  n1: { display_name: "Reception PC", labels: { power: A, switch: W1, disk_batch: D1, version: "1.0" } }
 
 policies:
   rep2: { type: replication, n: 2, w: 2 }

@@ -56,8 +56,9 @@ def _join(argv: list[str]) -> None:
     node_id = args.id or _sup("GET", "/cluster/info", timeout=10)["next_node_id"]
     num = int(node_id[1:]) if node_id[1:].isdigit() else 0
     strip = (args.strip or chr(ord("A") + (num - 1) % 26)).upper()
-    # Each laptop has its own power and disk; every laptop shares the hotspot (a cluster-wide risk, not scored).
-    labels = {"power": strip, "switch": "hotspot", "disk_batch": f"D-{node_id}", "version": "1.0"}
+    # Each laptop has its own power and disk; every laptop shares the Wi-Fi hotspot "W1" (a cluster-wide risk,
+    # not scored).
+    labels = {"power": strip, "switch": "W1", "disk_batch": f"D{num}", "version": "1.0"}
     from vault.node.soum_agent import run_agent
     run_agent(cfg, node_id, args.name or f"Laptop {node_id[1:]}", labels, args.hub,
               args.agent_port or cfg.cluster.ports.agent)

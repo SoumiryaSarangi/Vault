@@ -6,6 +6,7 @@ import NodeCard from "./NodeCard";
 
 export default function NodeList() {
   const nodes = useVault((s) => s.snapshot?.nodes);
+  const procs = useVault((s) => s.procs);
   const phi = useVault((s) => s.phiHistory);
   const selected = useVault((s) => s.ui.selectedNode);
   const setUi = useVault((s) => s.setUi);
@@ -26,6 +27,7 @@ export default function NodeList() {
                 selected={selected === n.id}
                 onSelect={() => setUi({ selectedNode: selected === n.id ? null : n.id })}
                 peerName={names}
+                proc={procs.find((p) => p.pid === n.id)}
               />
             ))
           : Array.from({ length: 6 }, (_, i) => <div key={i} className="h-[74px] animate-pulse rounded-[10px] bg-white/5" />)}
