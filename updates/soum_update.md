@@ -261,3 +261,84 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - Anything other teammates must know or do:
   - **Jaiveer (J8 metrics):** gateway stats arrive every ~1 s as per-window counts; availability over 60 s = sum of ok ÷ sum of (ok + failed) over the last ~60 reports. `failover_reads` is per window too, so for `read.failover` aggregate it over a few windows (J7).
   - **Anushka:** the dashboard's `traffic` strip is live now.
+
+## [Hour 9] S8 Reconciler + GC (brain modules inside metadata, seam I4)
+- What was done:
+  - **`reconcile_inventory(ctx, inv)`** (`brain/soum_reconciler.py`), called by Jaiveer's inventory route, implements the ARCHITECTURE §4.10 table:
+
+    | Case | Action |
+    |---|---|
+    | row ok, file absent | `missing` (only if the row is > 10 s old, so a just-written fragment isn't flagged) |
+    | row ok, sha differs | `corrupt` |
+    | row `lost`, file back with the right sha | `ok` |
+    | no row, current committed version, sha matches | **adopt** as `ok` (EC: matched against the frag_idx's sha) |
+    | no row, version aborted/superseded/unknown, or current but wrong sha | **orphan** → trim once the file is older than `gc.orphan_grace_s` |
+    | version still pending | left alone |
+
+    - Chunks that got a copy back are checked for over-replication at once.
+    - A REJOINING node gets `node.rejoined` (kept / trimmed).
+    - `fragment.missing` and `fragment.corrupt` events are capped at 3 per inventory.
+    - Repairs for missing/corrupt rows are queued by Jaiveer's scheduler, which scans those states.
+  - **`soum_gc.run(ctx)`**, every `gc.interval_s` (5 s):
+    1. Pending uploads older than `upload_timeout_s` → aborted.
+    2. Rows of aborted versions, and of superseded versions older than `superseded_grace_s`, → trim.
+    3. Over-replication on current data: each extra `frag_idx` copy keeps the one that **maximizes IFL** (`jaiveer_fate.ifl`; tie: ring-preferred via `jaiveer_placement.place`) and trims the rest. Chunks with a queued/running repair or move are skipped, because a move is over-replicated on purpose.
+    4. Rows left in `trim` get their job re-queued.
+    5. One aggregated `gc.cleaned` for leftover trims (aborted, superseded, orphan) that actually finished.
+  - Trims follow Jaiveer's executor: row → `trim`, then `enqueue_job(kind=trim, source_node=<node>, chunk_id, frag_idx, priority=4)`. Only `BrainContext` plus `jaiveer_fate` / `jaiveer_placement` are used, and I never enqueue or emit inside `db.write`.
+- Files created/changed: `brain/soum_reconciler.py`, `brain/soum_gc.py`, `tests/test_soum_reconcile_gc.py` (new, 7 tests; real schema via `Database` on a temp file + a fake `BrainContext`)
+- Endpoints / functions / components exposed:
+  - `reconcile_inventory(ctx, inv: Inventory) -> InventoryResult` (entry point fixed in `common/brain_api.py`)
+  - `soum_gc.run(ctx)`, which Jaiveer's `BRAIN_LOOPS` start automatically
+  - Helpers: `gc_pass(ctx) -> {expired, aborted, superseded, over_replicated}`, `over_replicated(ctx, chunk_ids=None)`, `choose_trims(...)`, `mark_and_trim(ctx, trims, reason)`
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_reconcile_gc.py` (7 tests). Full suite: 238 passed.
+  - **Live, rejoin** (`VAULT_DEMO=1 python -m vault up`, 12 files = 36 copies, n3 holds 8):
+    - Kill n3 → `node.dead` after 10 s → Jaiveer's repair rebuilds 8 copies elsewhere (44 `.blk` on disk).
+    - Start n3 → `node.rejoined` "Lab Laptop is back. Removed 8 extra copies it no longer needs." (kept 8, trimmed 8). Disk is back to **36** files, and every live file has `durable_min` 3.
+    - n3's originals were kept (the fate-aware placement has the higher IFL); the rebuilt copies were trimmed.
+  - **Live, superseded:** overwrite `xray-1.png` → 39 files; within 45 s the old version's 3 copies are deleted from disk (36 again), and `gc.cleaned` says "Cleaned up 1.3 MB … trimmed 3 fragments".
+- Known issues / TODO:
+  - `gc.cleaned` counts only trims queued since metadata started (the list is in memory), so after a metadata restart the first few may go unreported. The trims themselves still run.
+  - Adoption trusts the header sha in the inventory; the scrubber verifies the actual bytes later.
+- Anything other teammates must know or do:
+  - **Jaiveer:** the reconciler and GC are live in your process. Trims use `source_node`, as your `_plan_trim` expects. Rows I trim are put in `trim` state first, like your `_delete_copy` does. I don't queue repairs myself; I set rows to `missing`/`corrupt` and rely on your scheduler's scan.
+  - **Urooz (Oracle):** a dead node's return no longer leaves extra copies, and superseded versions vanish after ~30 s, so `under_protected` after settling should reflect real problems only.
+
+## [Hour 10] S9 Rebalancer (last data-plane task)
+- What was done (`brain/soum_rebalancer.py`, ARCHITECTURE §4.13):
+  - **`on_node_added(ctx, node_id)`:**
+    - For every current chunk whose placement (`jaiveer_placement.place`, fate-aware unless Naive) now includes the new node and that has nothing there, move **one** fragment from a holder outside the desired set.
+    - A move is skipped if it would lower the chunk's IFL. Among allowed moves: best IFL, then the fullest source.
+    - Jobs: `kind=move, reason=rebalance, source_node, target_node=<new>`, P3; Jaiveer's executor makes them make-before-break.
+    - Idempotent.
+  - **Reporting:** `rebalance.started` (planned % and ideal 1/N). When every move job has finished: `rebalance.completed` (actual moved ÷ total vs ideal) **and** kv `rebalance_last` = `RebalanceLast`, which Jaiveer's `/v1/metrics` reads.
+  - **`on_drain(ctx, node_id)`:**
+    - One `move` (reason `drain`, `target_node=None`, so the executor picks the target) per current fragment on a DRAINING node.
+    - Re-queued if moves fail.
+    - `node.drained` once it's empty; `is_drained(ctx, id)` tells Jaiveer when to set RETIRED.
+  - **`run(ctx)`** every 2 s:
+    - Notices machines that weren't there when metadata started, once ALIVE (nobody calls `on_node_added` today, so the loop does), and calls `on_node_added`.
+    - Finishes rebalances.
+    - Drives drains for DRAINING nodes.
+- Files created/changed: `brain/soum_rebalancer.py`, `tests/test_soum_rebalancer.py` (new, 4 tests), `tests/test_soum_reconcile_gc.py` (the fake context now writes real `jobs` rows), `handoffs/soum_to_jaiveer_decommission_drain.md` (new)
+- Endpoints / functions / components exposed: `on_node_added(ctx, node_id)`, `on_drain(ctx, node_id)`, `is_drained(ctx, node_id) -> bool`, `run(ctx)`, `plan_moves(rows, node_id, placement, durable)`; kv `rebalance_last`.
+- How to run / test it:
+  - `python -m pytest -q backend/vault/tests/test_soum_rebalancer.py` (4 tests). Full suite: 244 passed.
+  - Live (`VAULT_DEMO=1 python -m vault up`, 40 files = 120 fragments), via the supervisor's `POST :7070/nodes/add`:
+    - **n7 "Storage Closet"** `{power:A, switch:S3, disk_batch:D1}`: **0 moves**. No fully independent triple can include it, so every move would drop IFL 3 → 2, and the rule forbids that. The timeline says "Moved 0% (ideal 14%)" and every file keeps IFL 3.
+    - **n8 "Server Room"** `{power:D, switch:S4, disk_batch:D4}`: 30 moves, 10.2 MB in 4 s. n8 holds 30 of 120 fragments; the total is still 120 (moves, not copies). All files still have `durable_min` 3 and IFL 3, and 40 of 40 reads are byte-identical.
+    - Timeline: "Balanced. Moved 26% of your data (ideal 12%)." `/v1/metrics` `rebalance.last` = `{moved_fraction: 0.2624, ideal_fraction: 0.125}`.
+- Known issues / TODO:
+  - **Decision needed (Anushka): the moved fraction is ≈ 2× ideal with fate-aware placement.**
+    - Pure ring order gives ≈ 1/N (unit test: 0.10–0.19 for n7).
+    - With fate-aware placement, a new machine that shares nothing is picked far more often, so ~26% moves instead of ~12.5%.
+    - The extra moves buy no safety: the files were already at IFL 3.
+    - Option: decide rebalance moves by **pure ring order** (still never lowering IFL), which gives ≈ 1/N on stage. That departs from the literal §4.13 wording ("if `place(chunk_id, n)` includes the new node"), so it needs your OK.
+  - Drain needs Jaiveer's decommission route and the RETIRED transition (handoff).
+  - Imbalance moves (max/min > 1.2) are P1, not built.
+- Anything other teammates must know or do:
+  - **Jaiveer:** handoff `handoffs/soum_to_jaiveer_decommission_drain.md` (`POST /v1/nodes/{id}/decommission` → DRAINING; RETIRED when `soum_rebalancer.is_drained(ctx, id)` is True).
+    - Your `rebalance_last` kv is written on every completed rebalance.
+    - The slow-flag handoff looks done (merged as `ae13b01`); please set its status to DONE.
+  - **Anushka:** "Add machine" now rebalances by itself; no call needed from the supervisor. Decision above.
