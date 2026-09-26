@@ -12,7 +12,7 @@
   --color-line-strong: #ffffff29;
   --color-fg-0: #f2f4f8;
   --color-fg-1: #a7aec0;
-  --color-fg-2: #6c7489;
+  --color-fg-2: #8b93a8; /* raised from #6c7489 for WCAG AA 4.5:1 contrast */
   --color-brand: #b8ccff;
   --color-brand-strong: #7f9cff;
   --color-naive: #f97316;
@@ -139,11 +139,66 @@ body {
   outline-offset: 2px;
 }
 
+/* Accessibility: inputs using `outline-none` still get a visible keyboard focus ring */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 2px;
+}
+
+/* Skip-to-content link: hidden until focused by keyboard */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: var(--radius-control);
+  background: var(--color-brand);
+  color: var(--color-bg-0);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--dur-fast) var(--ease-out);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 8px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Windows High Contrast / forced colors: keep focus and borders visible */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText !important;
+  }
+  button,
+  [role="switch"] {
+    border: 1px solid ButtonText;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }

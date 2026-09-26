@@ -16,18 +16,19 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-bg-0 text-fg-0 flex flex-col">
       {/* Top bar */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4
+      <header role="banner" className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4
         bg-bg-0/80 backdrop-blur-md border-b border-line">
-        <span className="text-sm font-bold tracking-[0.25em] text-brand uppercase">VAULT</span>
+        <span className="text-sm font-bold tracking-[0.25em] text-brand uppercase" aria-label="Vault">VAULT</span>
         <Link
           id="nav-console"
           href="/console"
           className="text-sm text-fg-1 hover:text-fg-0 transition-colors"
         >
-          Open console →
+          Open console <span aria-hidden="true">→</span>
         </Link>
       </header>
 
+      <main id="main-content" tabIndex={-1} className="flex flex-col outline-none">
       {/* Hero */}
       <Hero />
 
@@ -54,9 +55,11 @@ export default function Landing() {
           className="px-8 py-4 rounded-2xl border border-brand text-brand font-semibold
             hover:bg-brand/10 transition-colors"
         >
-          Open the console →
+          Open the console <span aria-hidden="true">→</span>
         </Link>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="border-t border-line py-8 px-6 text-center text-fg-2 text-xs">
