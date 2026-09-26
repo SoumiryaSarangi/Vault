@@ -6,6 +6,7 @@ import { startFeed } from "@/lib/feed";
 import { useVault } from "@/lib/store";
 import { useEffect, type ReactNode } from "react";
 import ChaosDock, { ActiveFaults } from "./ChaosDock";
+import ConnectionBanner from "./ConnectionBanner";
 import KpiStrip from "./KpiStrip";
 import Overlays from "./Overlays";
 import TopBar from "./TopBar";
@@ -44,6 +45,7 @@ export default function ConsoleShell({ children }: { children: ReactNode }) {
       </main>
       <KpiStrip />
       <ChaosDock />
+      <ConnectionBanner />
       <Overlays />
       <Toasts />
     </div>

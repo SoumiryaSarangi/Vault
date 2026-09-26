@@ -57,17 +57,19 @@ class ClusterOps:
             return None
 
     async def _wait_nodes_alive(self, want: int, timeout: float) -> int:
-        end, alive = time.time() + timeout, 0
+        """Wait until `want` nodes are ALIVE **and hold a lease** (not fenced), so the first writes don't bounce."""
+        end, ready = time.time() + timeout, 0
         while time.time() < end:
             r = await self._meta("GET", "/v1/cluster")
             if r is None:
-                return -1          # no snapshot endpoint yet: nothing to wait for
+                return -1          # no snapshot endpoint: nothing to wait for
             if r.status_code == 200:
-                alive = sum(1 for n in r.json().get("nodes", []) if n.get("state") == "ALIVE")
-                if alive >= want:
-                    return alive
+                nodes = r.json().get("nodes", [])
+                ready = sum(1 for n in nodes if n.get("state") == "ALIVE" and not n.get("fenced"))
+                if ready >= want:
+                    return ready
             await asyncio.sleep(0.3)
-        return alive
+        return ready
 
     # ── seed ──
     async def seed(self, req: SeedRequest) -> SeedResult:
@@ -112,13 +114,12 @@ class ClusterOps:
                     log.warning("create bucket %s -> %s %s", name, r.status_code, r.text[:200])
             await self._meta("POST", "/v1/mode", ModeRequest(mode=req.mode).model_dump())
             nodes = len(self.procs.node_ids())
-            alive = await self._wait_nodes_alive(nodes, timeout=12)
+            alive = await self._wait_nodes_alive(nodes, timeout=15)
 
             files = 0
             if req.seed:
-                # ALIVE comes with the first heartbeat; give every node a couple more beats to hold its lease,
-                # or early writes fall back to spare targets and land on machines that share a switch/disk batch.
-                await asyncio.sleep(1.5)
+                # One more heartbeat round so every node's lease is on disk before the burst of writes.
+                await asyncio.sleep(0.6)
                 try:
                     files = (await self.seed(SeedRequest())).uploaded
                 except VaultHTTPError as e:
