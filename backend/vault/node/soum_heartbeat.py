@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 from pydantic import ValidationError
 
-from vault.common.config import SafetyCfg, VaultConfig, node_identity
+from vault.common.config import SafetyCfg, VaultConfig, node_addr, node_identity
 from vault.common.models import (Heartbeat, HeartbeatReply, Inventory, NodeState, RegisterReply,
                                  RegisterRequest)
 from vault.common.rpc import NetworkError, get_rpc
@@ -39,6 +39,9 @@ def parse_config(body: dict[str, Any]) -> tuple[Optional[VaultConfig], SafetyCfg
 class HeartbeatLoop:
     def __init__(self, node):
         self.node = node
+        # Our own address, fixed at startup: node.cfg is replaced by metadata's config after registering,
+        # and on another laptop (LAN mode) only VAULT_NODE_ADDR knows where we really are.
+        self.addr = node_addr(node.cfg, node.pid)
         self.registered = False
         self._meta_ok: Optional[bool] = None       # for logging state changes only
         self._was_fenced: Optional[bool] = None
@@ -69,7 +72,7 @@ class HeartbeatLoop:
     async def register(self) -> bool:
         n = self.node
         name, labels = node_identity(n.cfg, n.pid)
-        req = RegisterRequest(node_id=n.pid, addr=n.cfg.addr(n.pid), capacity_bytes=n.capacity,
+        req = RegisterRequest(node_id=n.pid, addr=self.addr, capacity_bytes=n.capacity,
                               display_name=name, labels=labels, discarded_on_startup=n.discarded)
         sent_at = time.time()
         try:
@@ -121,7 +124,7 @@ class HeartbeatLoop:
 
     async def send_inventory(self) -> None:
         n = self.node
-        inv = Inventory(node_id=n.pid, epoch=n.epoch, fragments=n.storage.inventory())
+        inv = Inventory(node_id=n.pid, epoch=n.epoch, fragments=n.storage.inventory(), sent_at=time.time())
         try:
             r = await get_rpc().request("meta", "POST", f"/v1/nodes/{n.pid}/inventory", json=inv.model_dump(),
                                         timeout=n.cfg.gateway.timeout_data_s)

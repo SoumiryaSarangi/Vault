@@ -1,6 +1,6 @@
 // Chaos actions → supervisor (ARCHITECTURE §7.4), with DESIGN §5.8 toasts. Owner: Anushka.
-import { ApiError, META_URL, SUPERVISOR_URL, patchJson, postJson } from "./api";
-import type { FaultList, PowerCutResult, Proc } from "./contracts";
+import { ApiError, META_URL, SUPERVISOR_URL, getJson, patchJson, postJson } from "./api";
+import type { ClusterInfo, FaultList, PowerCutResult, Proc } from "./contracts";
 import { useVault } from "./store";
 
 async function run<T>(call: () => Promise<T>, ok: string): Promise<T | null> {
@@ -62,5 +62,9 @@ export const chaos = {
     ),
   addMachine: (name: string, labels: Record<string, string>) =>
     run(() => postJson<Proc>(sup("/nodes/add"), { display_name: name, labels }), `You added ${name}.`),
+  rename: (pid: string, oldName: string, name: string) =>
+    run(() => postJson<Proc>(sup(`/nodes/${pid}/rename`), { display_name: name }), `You renamed ${oldName} to ${name}.`),
+  /** Hub address and next free id for the "Real laptop" join command (LAN mode). Null if unreachable. */
+  clusterInfo: () => getJson<ClusterInfo>(sup("/cluster/info")).catch(() => null),
   clearAll: () => run(() => postJson<FaultList>(sup("/chaos/clear_all")), "You fixed every cable and speed problem."),
 };

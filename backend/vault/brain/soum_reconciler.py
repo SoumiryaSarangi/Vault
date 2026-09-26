@@ -83,6 +83,9 @@ async def reconcile_inventory(ctx, inv: Inventory) -> InventoryResult:
                 batch):
             frag_sha.setdefault((r["chunk_id"], r["frag_idx"]), r["sha256"])
 
+    # File age on the node's own clock when it says when it built the list (LAN mode: laptops' clocks differ,
+    # and a node behind metadata's clock would make fresh files look old enough to trim).
+    clock = inv.sent_at if inv.sent_at is not None else now
     adopt, orphans, young_orphans = [], [], 0
     for fid in unknown:
         f = files[fid]
@@ -96,7 +99,7 @@ async def reconcile_inventory(ctx, inv: Inventory) -> InventoryResult:
             if 0 <= fi < policy.n and expected and f.sha256 == expected:
                 adopt.append((cid, fi, expected))
                 continue
-        if f.mtime < now - ctx.cfg.gc.orphan_grace_s:
+        if f.mtime < clock - ctx.cfg.gc.orphan_grace_s:
             orphans.append((cid, fi, node_id, f.size))
         else:
             young_orphans += 1

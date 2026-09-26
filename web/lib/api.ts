@@ -1,9 +1,12 @@
 // Service URLs and small typed fetch helpers. Owner: Anushka.
-// Defaults match vault.yaml; override with NEXT_PUBLIC_* in web/.env.local.
-export const META_URL = process.env.NEXT_PUBLIC_META_URL ?? "http://127.0.0.1:7000";
-export const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://127.0.0.1:7080";
-export const SUPERVISOR_URL = process.env.NEXT_PUBLIC_SUPERVISOR_URL ?? "http://127.0.0.1:7070";
-export const ORACLE_URL = process.env.NEXT_PUBLIC_ORACLE_URL ?? "http://127.0.0.1:7090";
+// Defaults: the host this page was loaded from (so http://<hub-ip>:3000 works from any laptop in LAN mode),
+// on vault.yaml's ports; override with NEXT_PUBLIC_* in web/.env.local.
+const PAGE_HOST = typeof window !== "undefined" ? window.location.hostname : "";
+const HOST = PAGE_HOST && PAGE_HOST !== "localhost" ? PAGE_HOST : "127.0.0.1";   // services listen on IPv4
+export const META_URL = process.env.NEXT_PUBLIC_META_URL ?? `http://${HOST}:7000`;
+export const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? `http://${HOST}:7080`;
+export const SUPERVISOR_URL = process.env.NEXT_PUBLIC_SUPERVISOR_URL ?? `http://${HOST}:7070`;
+export const ORACLE_URL = process.env.NEXT_PUBLIC_ORACLE_URL ?? `http://${HOST}:7090`;
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {

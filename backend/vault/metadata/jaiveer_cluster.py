@@ -45,7 +45,8 @@ async def register(request: Request, req: RegisterRequest) -> RegisterReply:
             await c.execute("UPDATE nodes SET addr=?, capacity_bytes=?, persisted_state=?, epoch=? WHERE id=?",
                             (row["addr"], row["capacity_bytes"], row["persisted_state"], row["epoch"], v.id))
     await brain.db.write(fn)
-    if req.node_id not in brain.cfg.nodes and brain.rpc is not None:
+    # Dial the node where it says it is: added machines, and machines on other laptops (LAN mode).
+    if brain.rpc is not None and req.addr:
         brain.rpc.set_addr(req.node_id, req.addr)
     await brain.emit("node.joined", {"node": v.id}, {"epoch": v.epoch, "labels": v.labels, "new": is_new})
     if req.discarded_on_startup:

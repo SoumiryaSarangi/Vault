@@ -250,8 +250,8 @@ def create_app(cfg: VaultConfig, pid: str = "meta", db_path: Optional[str] = Non
         events.set_sink(bus.sink)
         events.set_name_resolver(lambda i: CONTROL_DISPLAY_NAMES.get(i) or membership.display_name(i))
         await _recover(brain)
-        for n in membership.nodes():                    # added machines (n7+) the rpc doesn't know yet
-            if n.id not in cfg.nodes:
+        for n in membership.nodes():                    # last registered addresses (added machines, LAN mode)
+            if n.addr:
                 brain.rpc.set_addr(n.id, n.addr)
         tasks = _start_brain_loops(brain) if start_loops else []
         try:

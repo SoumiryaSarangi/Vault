@@ -68,7 +68,10 @@ export interface ChaosState {
 }
 
 // ── 7.4 Supervisor ──
-export interface Proc { pid: string; port: number; state: "running" | "stopped"; os_pid?: number | null; uptime_s: number; display_name: string }
+export interface Proc {
+  pid: string; port: number; state: "running" | "stopped"; os_pid?: number | null; uptime_s: number; display_name: string;
+  remote?: boolean; host?: string | null; note?: string | null;   // LAN mode: a machine on another laptop
+}
 export interface ProcList { procs: Proc[] }
 export interface PowerCutRequest { scope: "all" | "label"; label?: string | null; restore_after_s?: number | null }
 export interface PowerCutResult { killed: string[] }
@@ -79,6 +82,12 @@ export interface NodeChaosRequest { action: "slow" | "freeze" | "corrupt" | "dis
 export interface Fault { id: string; kind: string; subject: string; since: number; params: Record<string, unknown> }
 export interface FaultList { faults: Fault[] }
 export interface AddNodeRequest { display_name: string; labels: Record<string, string> }
+// LAN mode (docs/soum_lan_demo.md): laptops join with `python -m vault join`
+export interface JoinRequest { node_id?: string | null; display_name: string; labels: Record<string, string>; host: string; agent_port: number }
+export interface JoinResult { node_id: string; port: number; display_name: string; labels: Record<string, string>; new: boolean }
+export interface AgentStatus { node_id: string; running: boolean; os_pid?: number | null; uptime_s: number; host: string }
+export interface RenameRequest { display_name: string }
+export interface ClusterInfo { hub: string; lan: boolean; agent_port: number; next_node_id: string }
 export interface ChaosStep {
   t: number;
   action: "kill" | "start" | "restart_down" | "corrupt" | "link" | "slow" | "freeze" | "power_cut" | "power_restore" | "clear";

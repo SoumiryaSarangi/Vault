@@ -278,6 +278,7 @@ class Inventory(_M):
     node_id: str
     epoch: int
     fragments: list[InventoryItem] = Field(default_factory=list)
+    sent_at: Optional[float] = None     # node's clock, same as mtime: file age without cross-laptop clock skew
 
 
 class InventoryResult(_M):
@@ -628,6 +629,9 @@ class Proc(_M):
     os_pid: Optional[int] = None
     uptime_s: float = 0.0
     display_name: str = ""
+    remote: bool = False                # LAN mode: runs on another laptop, controlled through its agent
+    host: Optional[str] = None          # that laptop's IP
+    note: Optional[str] = None          # e.g. "asleep or off the network" when its agent can't be reached
 
 
 class ProcList(_M):
@@ -711,6 +715,46 @@ class ChaosStep(_M):
 class AddNodeRequest(_M):
     display_name: str
     labels: dict[str, str] = Field(default_factory=dict)
+
+
+# LAN mode (docs/soum_lan_demo.md): a laptop joins the hub with `python -m vault join`.
+class JoinRequest(_M):
+    """POST sup /nodes/join, sent by the node agent on the joining laptop (again every few seconds)."""
+    node_id: Optional[str] = None       # e.g. "n2"; None → the next free id
+    display_name: str
+    labels: dict[str, str] = Field(default_factory=dict)
+    host: str                           # the joining laptop's IP
+    agent_port: int = 7071
+
+
+class JoinResult(_M):
+    node_id: str
+    port: int                           # the node listens here on the joining laptop
+    display_name: str                   # the hub's current name (it may have been renamed)
+    labels: dict[str, str] = Field(default_factory=dict)
+    new: bool = False
+
+
+class AgentStatus(_M):
+    """GET agent /agent/status and the reply to POST /agent/node/start|stop."""
+    node_id: str
+    running: bool
+    os_pid: Optional[int] = None
+    uptime_s: float = 0.0
+    host: str = ""
+
+
+class RenameRequest(_M):
+    """POST sup /nodes/{id}/rename"""
+    display_name: str
+
+
+class ClusterInfo(_M):
+    """GET sup /cluster/info: what the dashboard needs to show the `vault join` command."""
+    hub: str                            # the hub's IP (cluster.host)
+    lan: bool                           # started with `vault up --lan`
+    agent_port: int = 7071
+    next_node_id: str = ""
 
 
 class ResetRequest(_M):

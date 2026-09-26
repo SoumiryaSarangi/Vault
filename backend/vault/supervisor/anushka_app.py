@@ -5,14 +5,17 @@ Chaos:     POST /chaos/link, /chaos/node/{pid}, /chaos/corrupt, GET /chaos, POST
 Power:     POST /power/cut, /power/restore
 Scripts:   POST /chaos/script, /chaos/script/{id}/stop
 Cluster:   POST /nodes/add, /cluster/reset, /demo/seed
+LAN mode:  POST /nodes/join (node agents), POST /nodes/{id}/rename, GET /cluster/info   (Soum, docs/soum_lan_demo.md)
 """
+import asyncio
+
 from fastapi import FastAPI
 
 from vault.common.config import VaultConfig
-from vault.common.models import (AddNodeRequest, CorruptRequest, CorruptResult, FaultList, LinkRequest,
-                                 NodeChaosRequest, PowerCutRequest, PowerCutResult, PowerRestoreRequest,
-                                 PowerRestoreResult, Proc, ProcList, ResetRequest, ResetResult, ScriptRequest,
-                                 ScriptStarted, SeedRequest, SeedResult)
+from vault.common.models import (AddNodeRequest, ClusterInfo, CorruptRequest, CorruptResult, FaultList, JoinRequest,
+                                 JoinResult, LinkRequest, NodeChaosRequest, PowerCutRequest, PowerCutResult,
+                                 PowerRestoreRequest, PowerRestoreResult, Proc, ProcList, RenameRequest, ResetRequest,
+                                 ResetResult, ScriptRequest, ScriptStarted, SeedRequest, SeedResult)
 from vault.common.service import VaultHTTPError, make_app
 from vault.supervisor.anushka_chaos_ctl import ChaosController
 from vault.supervisor.anushka_cluster import ClusterOps
@@ -26,7 +29,9 @@ def create_app(cfg: VaultConfig, pid: str = "sup") -> FastAPI:
 
     async def lifespan(app: FastAPI):
         await procs.start_all()
+        poll = asyncio.create_task(procs.poll_agents())      # machines on other laptops (LAN mode)
         yield
+        poll.cancel()
         chaos.forget_all()
         await procs.kill_all()
 
@@ -104,6 +109,18 @@ def create_app(cfg: VaultConfig, pid: str = "sup") -> FastAPI:
     @app.post("/nodes/add")
     async def add_node(req: AddNodeRequest) -> Proc:
         return await cluster.add_node(req)
+
+    @app.post("/nodes/join")
+    async def join(req: JoinRequest) -> JoinResult:
+        return await cluster.join(req)
+
+    @app.post("/nodes/{p}/rename")
+    async def rename(p: str, req: RenameRequest) -> Proc:
+        return await cluster.rename(p, req.display_name)
+
+    @app.get("/cluster/info")
+    async def info() -> ClusterInfo:
+        return cluster.info()
 
     @app.post("/cluster/reset")
     async def reset(req: ResetRequest) -> ResetResult:

@@ -6,7 +6,8 @@ Reusable by the gateway (S7): Pinger(pid, cfg, on_row) with no node object.
     service has it). Any HTTP answer = reachable; NetworkError (netsim block, refused, timeout) =
     unreachable. Direct only, never relayed.
   * Topology (agreed with Jaiveer): GET meta /v1/cluster every tick, relay allowed; feed
-    rpc.update_topology(nodes, links). Any error (404 until J6) keeps the last topology.
+    rpc.update_topology(nodes, links) and rpc.set_addr for each node's registered addr (LAN mode,
+    added machines). Any error (404 until J6) keeps the last topology.
 """
 import asyncio
 import logging
@@ -58,10 +59,17 @@ class Pinger:
         try:
             snap = r.json()
             nodes = [(n["id"], n["state"]) for n in snap.get("nodes", [])]
+            addrs = {n["id"]: n.get("addr") for n in snap.get("nodes", [])}
             links = [(l["a"], l["b"], l["a_to_b"], l["b_to_a"]) for l in snap.get("links", [])]
         except (ValueError, KeyError, TypeError):
             return
-        get_rpc().update_topology(nodes, links)
+        rpc = get_rpc()
+        # Addresses come from each node's own registration: machines on other laptops (LAN mode) and
+        # machines added at runtime are only reachable once we learn them here.
+        for node_id, addr in addrs.items():
+            if addr and node_id != self.pid and rpc.addr(node_id) != addr:
+                rpc.set_addr(node_id, addr)
+        rpc.update_topology(nodes, links)
         if nodes:
             self.node_ids = [n for n, _ in nodes]
             self.states = dict(nodes)

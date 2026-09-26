@@ -3,13 +3,13 @@
 // removable chips above the dock. Every action goes to the supervisor (lib/chaos.ts). Owner: Anushka.
 import Popover, { MenuItem, MenuLabel } from "@/components/ui/Popover";
 import { chaos } from "@/lib/chaos";
-import type { Fault, NodeView } from "@/lib/contracts";
+import type { ClusterInfo, Fault, NodeView } from "@/lib/contracts";
 import { domainName } from "@/lib/format";
 import { useNames } from "@/lib/hooks";
 import { nodeLook } from "@/lib/states";
 import { useVault } from "@/lib/store";
-import { Bug, Eraser, Plus, PlugZap, Power, Snail, Snowflake, Unplug, X, Zap, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { Bug, Copy, Eraser, Laptop, Plus, PlugZap, Power, Snail, Snowflake, Unplug, X, Zap, type LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 function DockButton({ icon: Icon, label, onClick, open }: { icon: LucideIcon; label: string; onClick: () => void; open?: boolean }) {
   return (
@@ -37,13 +37,25 @@ function useMachines() {
   const machines = procs.length
     ? procs
         .filter((p) => p.pid.startsWith("n"))
-        .map((p) => ({ id: p.pid, name: p.display_name, running: p.state === "running", node: nodes.find((n) => n.id === p.pid) }))
-    : nodes.map((n) => ({ id: n.id, name: n.display_name, running: n.state !== "DEAD", node: n as NodeView | undefined }));
+        .map((p) => ({
+          id: p.pid,
+          name: names(p.pid),                           // the snapshot has renames first
+          running: p.state === "running",
+          node: nodes.find((n) => n.id === p.pid),
+          off: p.note ?? "off",                         // LAN mode: "asleep or off the network"
+        }))
+    : nodes.map((n) => ({ id: n.id, name: n.display_name, running: n.state !== "DEAD", node: n as NodeView | undefined, off: "off" }));
   const dot = (n?: NodeView) => (n ? nodeLook(n, names).color : "var(--color-fg-2)");
   return { machines, dot, names };
 }
 
-const STRIPS = ["A", "B", "C"];
+/** Power strips in use (from the live labels, A–C by default) plus the next free letter for a new machine. */
+function useStrips(): { strips: string[]; next: string } {
+  const nodes = useVault((s) => s.snapshot?.nodes ?? NO_NODES);
+  const used = [...new Set(["A", "B", "C", ...nodes.map((n) => n.labels.power).filter(Boolean)])].sort();
+  const last = used[used.length - 1] ?? "C";
+  return { strips: used, next: String.fromCharCode(last.charCodeAt(0) + 1) };
+}
 
 function faultLabel(f: Fault, name: (id: string) => string): string {
   const p = f.params as Record<string, string | number>;
@@ -147,7 +159,7 @@ function TwoStepMenu({
         {machines.map((x) => (
           <MenuItem key={x.id} dot={x.running ? dot(x.node) : "var(--color-fg-2)"} disabled={filter ? !filter(x) : !x.running} onClick={() => setM(x)}>
             {x.name}
-            {!x.running && <span className="ml-auto text-[12px] text-fg-2">off</span>}
+            {!x.running && <span className="ml-auto text-[12px] text-fg-2">{x.off}</span>}
           </MenuItem>
         ))}
       </>
@@ -165,47 +177,113 @@ function TwoStepMenu({
   );
 }
 
-function AddMachineMenu({ close }: { close: () => void }) {
-  const [name, setName] = useState("Storeroom PC");
-  const [strip, setStrip] = useState("A");
+function StripPicker({ strips, value, onChange }: { strips: string[]; value: string; onChange: (s: string) => void }) {
   return (
-    <form
-      className="flex w-60 flex-col gap-2 p-1"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        chaos.addMachine(name.trim(), { power: strip, switch: "S1", disk_batch: "D1", version: "1.0" });
-        close();
-      }}
-    >
-      <MenuLabel>Add a machine</MenuLabel>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        aria-label="Machine name"
-        className="rounded-md border border-line-strong bg-bg-3 px-2.5 py-1.5 text-sm outline-none focus:border-brand"
-      />
-      <div className="flex gap-1">
-        {STRIPS.map((s) => (
+    <div className="flex items-center gap-1" role="radiogroup" aria-label="Power strip">
+      <Zap size={13} className="shrink-0 text-fg-2" aria-hidden />
+      {strips.map((s) => (
+        <button
+          type="button"
+          key={s}
+          role="radio"
+          aria-checked={value === s}
+          onClick={() => onChange(s)}
+          className={`flex-1 rounded-md border px-2 py-1 text-[13px] ${value === s ? "border-brand text-brand" : "border-line text-fg-1"}`}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const INPUT = "rounded-md border border-line-strong bg-bg-3 px-2.5 py-1.5 text-sm outline-none focus:border-brand";
+
+/** Add → Simulated (a process on this laptop) or Real laptop (the `vault join` command to run on it). */
+function AddMachineMenu({ close }: { close: () => void }) {
+  const { strips, next } = useStrips();
+  const [tab, setTab] = useState<"sim" | "laptop">("sim");
+  const [name, setName] = useState("Storeroom PC");
+  const [strip, setStrip] = useState(strips[0] ?? "A");
+  const [info, setInfo] = useState<ClusterInfo | null | undefined>(undefined);
+  useEffect(() => {
+    if (tab === "laptop" && info === undefined) chaos.clusterInfo().then(setInfo);
+  }, [tab, info]);
+  const choices = [...strips, next];
+  const cmd = info ? `python -m vault join --hub ${info.hub} --id ${info.next_node_id} --name "${name.trim()}" --strip ${strip}` : "";
+
+  return (
+    <div className="flex w-72 flex-col gap-2 p-1">
+      <div className="flex gap-1 rounded-md bg-bg-3 p-0.5" role="tablist" aria-label="Kind of machine">
+        {(
+          [
+            ["sim", "Simulated"],
+            ["laptop", "Real laptop"],
+          ] as const
+        ).map(([k, label]) => (
           <button
             type="button"
-            key={s}
-            onClick={() => setStrip(s)}
-            className={`flex-1 rounded-md border px-2 py-1 text-[13px] ${strip === s ? "border-brand text-brand" : "border-line text-fg-1"}`}
+            role="tab"
+            key={k}
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-[13px] font-medium ${tab === k ? "bg-bg-1 text-fg-0" : "text-fg-1"}`}
           >
-            Strip {s}
+            {k === "laptop" && <Laptop size={13} aria-hidden />}
+            {label}
           </button>
         ))}
       </div>
-      <button type="submit" className="rounded-md bg-brand-strong px-3 py-1.5 text-sm font-medium text-bg-0">
-        Add machine
-      </button>
-    </form>
+      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} aria-label="Machine name" className={INPUT} />
+      <StripPicker strips={choices} value={strip} onChange={setStrip} />
+      {tab === "sim" ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            chaos.addMachine(name.trim(), { power: strip, switch: "S1", disk_batch: "D1", version: "1.0" });
+            close();
+          }}
+        >
+          <p className="mb-2 text-[12px] text-fg-2">Runs on this laptop, like the others. No extra device needed.</p>
+          <button type="submit" className="w-full rounded-md bg-brand-strong px-3 py-1.5 text-sm font-medium text-bg-0">
+            Add machine
+          </button>
+        </form>
+      ) : info === undefined ? (
+        <p className="text-[12px] text-fg-2">Asking the hub…</p>
+      ) : info === null ? (
+        <p className="text-[12px] text-dead">Couldn&apos;t reach Vault&apos;s supervisor. Is `python -m vault up --lan` running?</p>
+      ) : (
+        <>
+          {!info.lan && (
+            <p className="text-[12px] text-suspect">
+              This hub isn&apos;t on the network yet. Restart it with <code>python -m vault up --lan</code>.
+            </p>
+          )}
+          <p className="text-[12px] text-fg-1">On the new laptop, in the Vault folder, run:</p>
+          <code className="block rounded-md border border-line bg-bg-3 p-2 font-mono text-[12px] break-all text-fg-0">{cmd}</code>
+          <button
+            type="button"
+            onClick={() =>
+              navigator.clipboard.writeText(cmd).then(
+                () => useVault.getState().toast("Copied. Run it on the new laptop; it shows up here when it joins.", "ok"),
+                () => useVault.getState().toast("Couldn't copy. Select the command and copy it by hand.", "error"),
+              )
+            }
+            className="flex items-center justify-center gap-1.5 rounded-md bg-brand-strong px-3 py-1.5 text-sm font-medium text-bg-0"
+          >
+            <Copy size={14} aria-hidden /> Copy command
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
 export default function ChaosDock() {
   const { machines, dot } = useMachines();
+  const { strips } = useStrips();
   const mode = useVault((s) => s.snapshot?.mode);
   const [autoRestore, setAutoRestore] = useState(true);
   const pick = (action: (id: string, name: string) => void, close: () => void, onlyRunning = true) =>
@@ -220,7 +298,7 @@ export default function ChaosDock() {
         }}
       >
         {m.name}
-        {!m.running && <span className="ml-auto text-[12px] text-fg-2">off</span>}
+        {!m.running && <span className="ml-auto text-[12px] text-fg-2">{m.off}</span>}
       </MenuItem>
     ));
 
@@ -289,7 +367,7 @@ export default function ChaosDock() {
           <>
             <MenuLabel>Cut the power</MenuLabel>
             <MenuItem onClick={() => (chaos.powerCut(null, "everything", autoRestore ? 8 : null), close())}>Everything</MenuItem>
-            {STRIPS.map((s) => (
+            {strips.map((s) => (
               <MenuItem key={s} onClick={() => (chaos.powerCut(`power=${s}`, `Power Strip ${s}`, autoRestore ? 8 : null), close())}>
                 Power Strip {s}
               </MenuItem>
@@ -307,7 +385,7 @@ export default function ChaosDock() {
             close={close}
             title="Move whose plug?"
             filter={(m) => !!m.node}
-            options={(m) => STRIPS.filter((s) => m.node?.labels.power !== s).map((s) => ({ label: `onto Power Strip ${s}`, value: s }))}
+            options={(m) => strips.filter((s) => m.node?.labels.power !== s).map((s) => ({ label: `onto Power Strip ${s}`, value: s }))}
             onPick={(id, n, strip, node) => chaos.movePlug(id, n, node?.labels ?? {}, strip)}
           />
         )}

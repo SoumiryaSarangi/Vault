@@ -158,4 +158,11 @@ Every seam is defined by `backend/vault/common/models.py` (Python) and `web/lib/
 
 **`docs/REFORGE_4_LAPTOP_DEMO_PLAN.md` vs the PRD.** The REFORGE doc describes 4 physical laptops, 4 nodes and the name "REFORGE". The frozen PRD describes 6 simulated machines on one laptop, names the product "Vault", and lists "real hardware for the demo" as a non-goal (§5.4).
 
-**Recommendation:** build and demo the PRD version. The architecture already supports real addresses (`nodes.<id>.addr` in `vault.yaml`, everything is HTTP), so a **4-laptop bonus** is possible at H16+ **only if every §8 box is ticked**: set `cluster.host: 0.0.0.0`, give each node a real `addr`, open the ports in Windows Firewall, and run one node per laptop. Treat it as P2; nobody builds for it before then. REFORGE's demo order (§17) matches our PRD scenes 1–4, so no demo-script changes are needed.
+**Decision (Anushka, relayed by Soum, 2026-09-26):** the 4-laptop demo is the core demo. **Built** as LAN mode:
+- the hub runs `python -m vault up --lan`;
+- laptops join with `python -m vault join`;
+- the dashboard can rename machines and add a real laptop or a simulated machine.
+
+Setup and runbook: `docs/soum_lan_demo.md`. The one-laptop demo below stays the fallback.
+
+**Original recommendation:** build and demo the PRD version. The architecture already supports real addresses (`nodes.<id>.addr` in `vault.yaml`, everything is HTTP), so a **4-laptop bonus** is possible at H16+ **only if every §8 box is ticked**: set `cluster.host: 0.0.0.0`, give each node a real `addr`, open the ports in Windows Firewall, and run one node per laptop. Treat it as P2; nobody builds for it before then. REFORGE's demo order (§17) matches our PRD scenes 1–4, so no demo-script changes are needed.
