@@ -49,11 +49,26 @@ def _name(ctx, pid: str) -> str:
     return CONTROL_DISPLAY_NAMES.get(pid) or ctx.membership.display_name(pid)
 
 
-def _slow(ctx, node_id: str, now_mono: float) -> tuple[bool, Optional[float]]:
-    """Other participants' pings to node_id: p50 RTT > slow_rtt_ms or ≥ 20% loss."""
+SLOW_WARMUP_S = 5.0          # a machine (or a reporter) that came up less than this ago isn't judged / trusted
+SLOW_MIN_REPORTERS = 2       # the loss rule needs at least this many peers' pings
+
+
+def _warm(ctx, pid: str, now_mono: float) -> bool:
+    m = ctx.membership.members.get(pid)
+    if m is None:                                   # gw / meta rows: trusted once metadata is past its grace
+        return not _in_grace(ctx, now_mono)
+    return m.view.state == NodeState.ALIVE and now_mono - m.state_since >= SLOW_WARMUP_S
+
+
+def _slow(ctx, node_id: str, now_mono: float) -> tuple[bool, Optional[float], str]:
+    """Other participants' pings to node_id: p50 RTT > slow_rtt_ms, or ≥ 20% loss seen by ≥ 2 warmed-up peers.
+    → (slow, p50, why). Never during startup grace or the node's first SLOW_WARMUP_S (peers still booting)."""
+    limit = ctx.cfg.detector.slow_rtt_ms
+    if _in_grace(ctx, now_mono) or not _warm(ctx, node_id, now_mono):
+        return False, None, ""
     rtts, total, lost = [], 0, 0
     for reporter, row in ctx.membership.reach_rows(now_mono).items():
-        if reporter == node_id:
+        if reporter == node_id or not _warm(ctx, reporter, now_mono):
             continue
         r = row.get(node_id)
         if r is None:
@@ -64,9 +79,13 @@ def _slow(ctx, node_id: str, now_mono: float) -> tuple[bool, Optional[float]]:
         elif r.rtt_ms is not None:
             rtts.append(r.rtt_ms)
     if total == 0:
-        return False, None
+        return False, None, ""
     p50 = statistics.median(rtts) if rtts else None
-    return (p50 is not None and p50 > ctx.cfg.detector.slow_rtt_ms) or lost / total >= SLOW_LOSS, p50
+    if p50 is not None and p50 > limit:
+        return True, p50, f"p50 rtt {round(p50)}ms > {limit}ms"
+    if total >= SLOW_MIN_REPORTERS and lost / total >= SLOW_LOSS:
+        return True, p50, f"ping loss {lost}/{total} ≥ {int(SLOW_LOSS * 100)}%"
+    return False, p50, ""
 
 
 async def tick(ctx, now_mono: float, st: Optional[DetectorState] = None) -> None:
@@ -114,10 +133,11 @@ async def tick(ctx, now_mono: float, st: Optional[DetectorState] = None) -> None
 
         # flags (live machines only)
         if v.state in (NodeState.ALIVE, NodeState.PARTITIONED, NodeState.SUSPECT):
-            slow, p50 = _slow(ctx, v.id, now_mono)
+            slow, p50, why = _slow(ctx, v.id, now_mono)
             v.slow = slow
             if slow and not st.prev_slow.get(v.id):
-                await ctx.emit("node.slow", {"node": v.id}, {"ms": round(p50 or 0), "limit": d.slow_rtt_ms})
+                await ctx.emit("node.slow", {"node": v.id},
+                               {"ms": round(p50) if p50 is not None else None, "limit": d.slow_rtt_ms, "why": why})
             st.prev_slow[v.id] = slow
             if v.fenced and not st.prev_fenced.get(v.id):
                 await ctx.emit("node.fenced", {"node": v.id}, {"s": 0})

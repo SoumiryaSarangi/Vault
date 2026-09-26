@@ -155,3 +155,9 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - How to run / test it: `python -m pytest -q` → 177 passed. Test: kill → degraded → rebuild → ok, `last_incident` parts add up to MTTR, `/v1/incidents` shows the closed `node_dead` incident.
 - Known issues / TODO: `scrub.completed` has no pass duration/MB yet (the heartbeat's `ScrubStatus` doesn't carry them).
 - Anything other teammates must know or do: **Anushka:** MTTR tile = `metrics.last_incident` (`detect_s`, `grace_s`, `repair_s`, `mttr_s`). All inputs are live except availability, which needs Soum's gateway stats (S7).
+
+## [Hour 6] Fix: false node.slow at boot (Soum's handoff `soum_to_jaiveer_slow_flag_at_startup.md`)
+- What was done: the slow flag no longer fires while machines are booting. No slow checks during `startup_grace_s`; a machine isn't judged until it has been ALIVE for 5 s; reach rows from peers that are themselves still starting (or not ALIVE) are ignored; the ping-loss rule needs ≥ 2 peers. `node.slow` now carries `data.why`, e.g. "p50 rtt 420ms > 300ms" or "ping loss 3/5 ≥ 20%".
+- Files created/changed: `backend/vault/brain/jaiveer_detector.py`, `backend/vault/tests/test_jaiveer_detector.py` (+2 tests: boot with every ping failing → no slow; loss rule needs 2 peers and says why).
+- How to run / test it: `python -m pytest -q` → 179 passed.
+- Anything other teammates must know or do: **Anushka:** the `node.slow` technical template in `common/events.py` is still "p50 rtt {ms}ms > {limit}ms", which reads wrong for the loss rule. Suggest changing it to `"{why}"` (every `node.slow` event now carries `why`). Your file, so your call.
