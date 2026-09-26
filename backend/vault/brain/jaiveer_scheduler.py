@@ -56,6 +56,10 @@ async def scan(ctx) -> dict:
                                                                                          JobReason.under_replicated)
                 todo.append((cid, fi, prio, reason))
 
+    if todo:                                   # skip what's already queued/running: no write txn (fsync) per scan
+        active = {(r["chunk_id"], r["frag_idx"]) for r in await ctx.db.fetchall(
+            "SELECT chunk_id, frag_idx FROM jobs WHERE kind='repair' AND state IN ('queued','running')")}
+        todo = [t for t in todo if (t[0], t[1]) not in active]
     if todo:
         from vault.metadata.jaiveer_app import enqueue_job_tx
 

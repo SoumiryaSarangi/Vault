@@ -155,3 +155,27 @@ Append one entry per completed task (TEAM_PROTOCOL §6). Newest at the bottom. I
 - How to run / test it: `python -m pytest -q` → 177 passed. Test: kill → degraded → rebuild → ok, `last_incident` parts add up to MTTR, `/v1/incidents` shows the closed `node_dead` incident.
 - Known issues / TODO: `scrub.completed` has no pass duration/MB yet (the heartbeat's `ScrubStatus` doesn't carry them).
 - Anything other teammates must know or do: **Anushka:** MTTR tile = `metrics.last_incident` (`detect_s`, `grace_s`, `repair_s`, `mttr_s`). All inputs are live except availability, which needs Soum's gateway stats (S7).
+
+## [Hour 6] Fix: false node.slow at boot (Soum's handoff `soum_to_jaiveer_slow_flag_at_startup.md`)
+- What was done: the slow flag no longer fires while machines are booting. No slow checks during `startup_grace_s`; a machine isn't judged until it has been ALIVE for 5 s; reach rows from peers that are themselves still starting (or not ALIVE) are ignored; the ping-loss rule needs ≥ 2 peers. `node.slow` now carries `data.why`, e.g. "p50 rtt 420ms > 300ms" or "ping loss 3/5 ≥ 20%".
+- Files created/changed: `backend/vault/brain/jaiveer_detector.py`, `backend/vault/tests/test_jaiveer_detector.py` (+2 tests: boot with every ping failing → no slow; loss rule needs 2 peers and says why).
+- How to run / test it: `python -m pytest -q` → 179 passed.
+- Anything other teammates must know or do: **Anushka:** the `node.slow` technical template in `common/events.py` is still "p50 rtt {ms}ms > {limit}ms", which reads wrong for the loss rule. Suggest changing it to `"{why}"` (every `node.slow` event now carries `why`). Your file, so your call.
+
+## [Hour 7] Repair speed (Anushka: 47 MB took 64.9 s, MTTR 83 s)
+- What was done: measured on the real stack (supervisor + 6 real nodes + gateway, 200 seeded files, `VAULT_DEMO=1`, kill n3), then removed four bottlenecks:
+  1. The scheduler scan opened a write transaction (an fsync'd commit) every 500 ms even with nothing new → now it only writes jobs that aren't already queued/running.
+  2. The dispatcher idled up to 200 ms after every finished job → it now wakes the moment a job ends.
+  3. It re-planned every queued job each pass even when all machines were at their 2-job limit → stops as soon as no slot is free (and plans at most 3× the free slots).
+  4. Sources always started from the same machine → least-busy source first.
+- Result (same machine, with 2 live-stream clients + /metrics, /repair, /cluster, /fate polled every second): **51.7 MB rebuilt in 1.8 s, MTTR 10.1 s (detect 2.6 + wait 5.6 + rebuild 1.8)**. Before the fix, without that load: 6.4 s rebuild, MTTR 16.3 s.
+- Note: after n3 dies, every rebuild must land on n4 (the only machine left on its own power strip), so `repair.per_node: 2` caps it at 2 at a time. If Windows is still slow (fsync is much slower there), raising `repair.per_node` to 4 in vault.yaml is the next lever (your file, your call).
+- Files: `backend/vault/brain/jaiveer_repair.py`, `backend/vault/brain/jaiveer_scheduler.py`.
+
+## [Hour 7] J9 Shared-Fate Auditor (headline feature)
+- What was done: audit every 5 s and on `request_audit` (label PATCH already calls it); per-file effective copies, levels safe/limited/at_risk, greedy make-before-break moves (never lower IFL), advice, cluster-wide risks, `GET /v1/fate`.
+- Files created/changed: `backend/vault/brain/jaiveer_auditor.py`, `backend/vault/metadata/jaiveer_cluster.py` (`GET /v1/fate`), `backend/vault/tests/test_jaiveer_auditor.py` (5 tests).
+- Endpoints: `GET /v1/fate` → `FateReport` (fate_keys, domains incl. cluster-wide, histogram, at-risk files with shared domains, advice, last_audit_at). `GET /v1/objects/{b}/{k}/health` (J5) shows IFL + min_cut.
+- Behaviour: for each chunk below target, try every single move a → b (a in the chunk's min cut, b ALIVE/unfenced/not full) and take one that strictly raises IFL; equally good moves are spread over machines. `move` job P2 (IFL 1) or P3 (only if b < 85% full); the J7 dispatcher pulls to b, verifies, then deletes a. No moves in Naive mode (report only) or while the chunk has repair work in flight. Advice (`fate.limited`, once per layout): D1 sentence for ec42 exactly as in MASTER_PLAN; otherwise "{Power Strip A} feeds 4 of 6 machines. Give {Lab Laptop or Records Room} its own power supply to get 3 independent copies." Events: `fate.at_risk` (per shared domain, when it appears), `fate.fixed` (when it's gone), `fate.limited`, `fate.cluster_wide` (once).
+- How to run / test it: `python -m pytest -q` → 238 passed. The test runs the §4.12 demo with the real dispatcher on a fake node API: relabel n3, n5 → power A → the files on {n1,n3,n5} drop to IFL 1 (`fate.at_risk`: "… on Power Strip A") → moves raise them all to 2 (`fate.fixed`) → one advice line (exact text above) → every move was pull-then-delete → with Power Strip A off, 0 unreadable files. ec42: IFL 2, no moves, one D1 advice line.
+- Anything other teammates must know or do: **Anushka (Fate page):** `GET /v1/fate`; advice in `advice[].human`; the demo relabel is `PATCH /v1/nodes/{id}/labels`. **Urooz (pitch):** the advice sentence is exactly the one above.

@@ -220,6 +220,7 @@ def test_suspect_recovers_on_heartbeat(c):
 
 def test_slow_flag_and_event(c):
     clk = Clock(c)
+    clk.run(6)                                                    # past the 5 s warm-up
     for nid in ("n1", "n2", "n3"):
         clk.reach[nid] = {"n6": Reach(ok=True, rtt_ms=800.0)}
     clk.run(3)
@@ -334,3 +335,32 @@ def test_participant_report_traffic(c):
     c.app_.state.brain.invalidate_snapshot()
     assert c.get("/v1/cluster").json()["traffic"] == {"puts_per_s": 4.0, "gets_per_s": 2.0}
 
+
+
+def test_no_slow_flag_at_boot(c):
+    # Soum's handoff: at boot peers' pings fail while they start → must not flag every machine slow.
+    brain = c.app_.state.brain
+    clk = Clock(c)
+    brain.started_mono = clk.t                                     # fresh start: grace running
+    for nid in IDS:                                               # everyone "can't reach" everyone else yet
+        clk.reach[nid] = {p: Reach(ok=False) for p in IDS if p != nid}
+    clk.run(CFG.detector.startup_grace_s - 0.5)
+    assert not any(clk.ms.node(n).slow for n in IDS)
+    for nid in IDS:                                               # boot finished: peers answer normally
+        clk.reach[nid] = {p: Reach(ok=True, rtt_ms=5.0) for p in IDS if p != nid}
+    clk.run(8)
+    assert not any(clk.ms.node(n).slow for n in IDS)
+    assert events(c, "node.slow") == []
+
+
+def test_slow_loss_rule_needs_two_peers_and_says_why(c):
+    clk = Clock(c)
+    clk.run(6)                                                    # everyone warmed up
+    clk.reach["n1"] = {"n6": Reach(ok=False)}                     # one peer alone: not enough
+    clk.run(2)
+    assert clk.ms.node("n6").slow is False
+    clk.reach["n2"] = {"n6": Reach(ok=False)}
+    clk.run(2)
+    assert clk.ms.node("n6").slow is True
+    ev = events(c, "node.slow")[0]
+    assert ev["data"]["why"].startswith("ping loss 2/")
