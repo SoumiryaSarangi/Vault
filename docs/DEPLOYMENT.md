@@ -3,6 +3,8 @@
 **Status:** v1.0 · **Owner:** Anushka (changes are gated, TEAM_PROTOCOL §4) · **Date:** 2026-09-26
 **Read with:** `TECH_STACK.md` §4 (setup), `ARCHITECTURE.md` §1 (processes and ports), §9 (`vault.yaml`), §13 (limitations).
 
+**In a hurry?** `docs/AWS_QUICKSTART.md` does Option A with one paste-in launch script (about 10 minutes, no domain needed).
+
 ---
 
 ## 0. Read this first
