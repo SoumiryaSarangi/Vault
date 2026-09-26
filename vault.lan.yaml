@@ -1,0 +1,64 @@
+# Vault multi-laptop (LAN) config. Owner: Anushka (added by Soum with her OK). Guide: docs/soum_lan_demo.md
+# Used by `python -m vault up --lan` on the hub and by `python -m vault join --hub <ip>` on every other laptop.
+# Only the hub's own machine is listed: the other laptops join at runtime and bring their name and labels,
+# so no IP address is written here (the hotspot can hand out new ones and nothing breaks).
+# VAULT_HUB (set by `up --lan` / `join`) points meta, gateway, supervisor and oracle at the hub and makes every
+# process listen on the network.
+cluster:
+  data_dir: ./data/lan
+  logs_dir: ./logs/lan
+  host: 127.0.0.1           # replaced by VAULT_HUB
+  ports: { supervisor: 7070, metadata: 7000, gateway: 7080, oracle: 7090, node_base: 7101, agent: 7071 }
+  chunk_size: 1048576
+  node_capacity_bytes: 2147483648
+  default_buckets: { clinic: rep3, archive: ec42, scratch: rep2, oracle: rep3 }
+
+nodes:   # the hub laptop's own machine; laptops 2, 3, 4 join as n2, n3, n4 on strips B, C, D
+  n1: { display_name: "Reception PC", labels: { power: A, switch: hotspot, disk_batch: D-n1, version: "1.0" } }
+
+policies:
+  rep2: { type: replication, n: 2, w: 2 }
+  rep3: { type: replication, n: 3, w: 2 }
+  ec42: { type: erasure, k: 4, m: 2, w: 5 }
+
+fate:
+  keys: [power, switch, disk_batch, version]     # most → least important
+  improve_max_node_fill: 0.85
+  improve_max_imbalance: 0.20
+
+placement: { vnodes_per_node: 128 }
+
+detector:
+  heartbeat_ms: 500
+  ping_ms: 1000
+  window: 100
+  min_std_ms: 200
+  phi_suspect: 8.0
+  confirm_ms: 1000
+  dead_after_s: 8           # stage timing: a closed lid is rebuilding within ~10 s
+  lease_ttl_ms: 5000        # must be < dead_after_s * 1000
+  startup_grace_s: 10
+  slow_rtt_ms: 300
+
+repair: { scan_ms: 500, max_concurrent: 8, per_node: 2, bandwidth_mbps: 50, max_attempts: 3 }
+scrub:  { rate_mbps: 20, recent_first_minutes: 5 }
+gc:     { interval_s: 5, upload_timeout_s: 60, superseded_grace_s: 30, orphan_grace_s: 60 }
+inventory: { interval_s: 30 }
+gateway: { chunks_in_flight: 2, spares: 2, hedge_ms: 150, timeout_control_s: 1.0, timeout_data_s: 10.0 }
+
+safety:                      # Naive mode turns every switch off
+  verify_on_receive: true
+  verify_on_read: true
+  durable_writes: true
+  quorum_writes: true
+  read_failover: true
+  repair: true
+  scrub: true
+  fate_aware_placement: true
+  fencing: true
+  relay: true
+
+storage: { sim_page_cache: false, dirty_expire_ms: 5000 }
+chaos:   { enabled: true }
+oracle:  { clients: 8, keyspace: 200, duration_s: 60, settle_max_s: 60, seed: 42, script: standard }
+web:     { origin: "http://localhost:3000" }   # LAN addresses are allowed too (common/service.py LOCAL_ORIGINS)
