@@ -70,6 +70,7 @@ class Dispatcher:
         self.bucket = TokenBucket(ctx.cfg.repair.bandwidth_mbps * 1e6)
         self.done_bytes: deque[tuple[float, int]] = deque()
         self.blocked_at: dict[str, float] = {}
+        self.wake = asyncio.Event()                     # set when a job finishes → start the next one at once
 
     # ── bookkeeping ──
     def _take_nodes(self, nodes: list[str]) -> None:
@@ -105,11 +106,17 @@ class Dispatcher:
         now = time.monotonic()
         started, blocked = 0, []
         planned_targets: dict[str, set[str]] = {}         # chunk → targets chosen in this pass
+        cap = ctx.cfg.repair.per_node
+        alive = [n.id for n in ctx.nodes() if n.state == NodeState.ALIVE]
+        planned = 0
         for job in jobs:
-            if started >= free:
+            if started >= free or planned >= 3 * free + 10:
                 break
+            if alive and all(self.per_node.get(n, 0) >= cap for n in alive):
+                break                                   # every machine is at its limit: nothing else can start
             if job["id"] in self.running or self.not_before.get(job["id"], 0) > now:
                 continue
+            planned += 1
             plan = await self.plan(job, planned_targets.get(job["chunk_id"], set()))
             if plan["action"] == "finish":
                 await self._finish(job, plan["state"], plan.get("error"))
@@ -185,7 +192,8 @@ class Dispatcher:
         # sources
         def rank(r):
             n = states[r["node_id"]]
-            return (n.state != NodeState.ALIVE, n.route != "direct", n.slow, r["node_id"])
+            return (n.state != NodeState.ALIVE, n.route != "direct", n.slow, self.per_node.get(r["node_id"], 0),
+                    r["node_id"])
         avail = sorted((r for r in durable_rows if states[r["node_id"]].state in SOURCE_STATES), key=rank)
         if kind == "move":
             avail.sort(key=lambda r: r["node_id"] != job["source_node"])        # prefer the copy being moved
@@ -247,6 +255,7 @@ class Dispatcher:
         finally:
             self._free_nodes(nodes)
             self.running.pop(job["id"], None)
+            self.wake.set()
 
     async def _pull(self, job: dict, plan: dict) -> None:
         ctx = self.ctx
@@ -404,13 +413,17 @@ async def run(ctx) -> None:
     d = dispatcher(ctx)
     try:
         while True:
+            d.wake.clear()
             try:
                 await d.dispatch_once()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.exception("dispatch failed")
-            await asyncio.sleep(LOOP_S)
+            try:
+                await asyncio.wait_for(d.wake.wait(), timeout=LOOP_S)
+            except asyncio.TimeoutError:
+                pass
     finally:
         for t in list(d.running.values()):
             t.cancel()

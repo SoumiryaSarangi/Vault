@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from vault.common.config import SafetyCfg
 from vault.common.events import MODE_SENTENCE
 from vault.common.models import (ActiveJob, ControlView, Heartbeat, HeartbeatReply, Incident, IncidentList,
-                                 Inventory, Metrics,
+                                 FateReport, Inventory, Metrics,
                                  InventoryResult, LabelsPatch, LinkView, ModeRequest, ModeResult, NodeState, NodeView,
                                  RegisterReply, RegisterRequest, RepairView, Snapshot, TrafficView)
 from vault.common.service import VaultHTTPError
@@ -276,3 +276,15 @@ async def list_incidents(request: Request, limit: int = 20) -> IncidentList:
     rows = await _brain(request).db.fetchall("SELECT * FROM incidents ORDER BY id DESC LIMIT ?",
                                              (max(1, min(limit, 200)),))
     return IncidentList(incidents=[Incident(**r) for r in rows])
+
+
+# ── J9: fate report ──
+
+@router.get("/v1/fate")
+async def get_fate(request: Request) -> FateReport:
+    from vault.brain.jaiveer_auditor import _state, audit
+    brain = _brain(request)
+    st = _state(brain)
+    if st.report is None or time.time() - (st.report.last_audit_at or 0) > 10:
+        return await audit(brain)
+    return st.report
